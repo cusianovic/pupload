@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"pupload/internal/models"
+	"pupload/internal/util"
 	"time"
 
 	"github.com/hibiken/asynq"
@@ -13,12 +14,12 @@ import (
 
 func (f *FlowService) GetNode(flowName string, nodeIndex int) models.Node {
 	return f.FlowList[flowName].Nodes[nodeIndex]
-
 }
 
-func (f *FlowService) HandleExecuteNode(run FlowRun, nodeIndex int) {
+func (f *FlowService) HandleExecuteNode(run *FlowRun, nodeIndex int) {
 
 	node := f.GetNode(run.FlowName, nodeIndex)
+	flow, _ := f.GetFlow(run.FlowName)
 
 	nodeDef, exists := f.NodeDefs[node.DefName]
 	if !exists {
@@ -38,31 +39,67 @@ func (f *FlowService) HandleExecuteNode(run FlowRun, nodeIndex int) {
 		inputs[edge.Name] = url.String()
 	}
 
-	f.ExecuteNode(&nodeDef, &node, inputs, nil)
+	outputs := make(map[string]string)
+	for _, edge := range node.Outputs {
 
-	delete(run.NodesLeft, nodeIndex)
-	f.updateFlowRun(run)
-}
+		artifact := Artifact{
+			StoreName:  *flow.DefaultStore,
+			ObjectName: fmt.Sprintf("%s-%s", edge.Edge, run.ID),
+			EdgeName:   edge.Edge,
+		}
 
-func (f *FlowService) ExecuteNode(nodeDef *models.NodeDef, n *models.Node, inputURLs map[string]string, outputURLs map[string]string) error {
+		if flow.DefaultStore == nil {
+			f.log.Error("default flow store is nil")
+		}
 
-	task, err := NewNodeExecuteTask(*nodeDef, *n, inputURLs, outputURLs)
+		store, _ := f.GetStore(run.FlowName, *flow.DefaultStore)
 
-	if err != nil {
-		return err
+		url, err := store.PutURL(context.TODO(), artifact.ObjectName, 10*time.Second)
+		if err != nil {
+			f.log.Error("could not generate put url", "err", err)
+		}
+
+		outputs[edge.Name] = url.String()
+		WaitingURL := WaitingURL{
+			Artifact: artifact,
+			PutURL:   url.String(),
+			TTL:      time.Now().Add(10 * time.Second),
+		}
+
+		run.WaitingURLs = append(run.WaitingURLs, WaitingURL)
 	}
-	f.AsynqClient.Enqueue(task, asynq.Queue("worker"))
 
-	return nil
-}
-
-func NewNodeExecuteTask(nodeDef models.NodeDef, node models.Node, inputURLs map[string]string, outputURLs map[string]string) (*asynq.Task, error) {
-	payload, err := json.Marshal(models.NodeExecutePayload{
+	p := models.NodeExecutePayload{
+		RunID:      run.ID,
 		NodeDef:    nodeDef,
 		Node:       node,
-		InputURLs:  inputURLs,
-		OutputURLs: outputURLs,
-	})
+		InputURLs:  inputs,
+		OutputURLs: outputs,
+	}
+
+	info, err := f.executeNode(p)
+	if err != nil {
+		f.log.Error("error enqueing node to execute", "err", err, "node", nodeIndex)
+	}
+
+	run.RunningNodes[nodeIndex] = info
+
+}
+
+func (f *FlowService) executeNode(payload models.NodeExecutePayload) (*asynq.TaskInfo, error) {
+
+	task, err := NewNodeExecuteTask(payload)
+
+	if err != nil {
+		return nil, err
+	}
+	taskinfo, _ := f.AsynqClient.Enqueue(task, asynq.Queue("worker"))
+
+	return taskinfo, nil
+}
+
+func NewNodeExecuteTask(p models.NodeExecutePayload) (*asynq.Task, error) {
+	payload, err := json.Marshal(p)
 
 	if err != nil {
 		return nil, err
@@ -71,6 +108,31 @@ func NewNodeExecuteTask(nodeDef models.NodeDef, node models.Node, inputURLs map[
 	return asynq.NewTask(models.TypeNodeExecute, payload), nil
 }
 
-func HandleNodeFinishedTask(ctx context.Context, t *asynq.Task) error {
+func (f *FlowService) HandleNodeFinishedTask(ctx context.Context, t *asynq.Task) error {
+	var p models.NodeFinishedPayload
+	if err := json.Unmarshal(t.Payload(), &p); err != nil {
+		f.log.Error("error processing node finished")
+		return err
+	}
+
+	mutex_key := fmt.Sprintf("flowrunlock:%s", p.RunID)
+	ok, err := util.AcquireLock(f.RedisClient, mutex_key, 10*time.Second)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return fmt.Errorf("flowrun lock %s currently being held", p.RunID)
+	}
+
+	//run, err := f.GetFlowRun(p.RunID)
+	// if err != nil {
+	// 	return err
+	// }
+
+	return nil
+}
+
+func HandleNodeErrorTask(ctx context.Context, t *asynq.Task) error {
 	return nil
 }

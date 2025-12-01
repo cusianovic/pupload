@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 )
 
 type FlowRunStatus string
@@ -30,21 +31,23 @@ type Artifact struct {
 type WaitingURL struct {
 	Artifact Artifact
 	PutURL   string
+	TTL      time.Time
 }
 
 type FlowRun struct {
-	ID          string
-	FlowName    string
-	NodesLeft   map[int]struct{}
-	Status      FlowRunStatus
-	Artifacts   map[string]Artifact // Maps given edge ID to Artifact
-	WaitingURLs []WaitingURL
+	ID           string
+	FlowName     string
+	NodesLeft    map[int]struct{}
+	RunningNodes map[int]*asynq.TaskInfo
+	Status       FlowRunStatus
+	Artifacts    map[string]Artifact // Maps given edge ID to Artifact
+	WaitingURLs  []WaitingURL
 }
 
 func (f *FlowService) CreateFlowRun(flowName string) (FlowRun, error) {
 
 	id := uuid.Must(uuid.NewV7())
-	key := fmt.Sprintf("flowrun:%s", id)
+	key := fmt.Sprintf("flowrun:%s", id.String())
 
 	nodeCount := len(f.FlowList[flowName].Nodes)
 	nodesLeft := make(map[int]struct{})
@@ -56,13 +59,16 @@ func (f *FlowService) CreateFlowRun(flowName string) (FlowRun, error) {
 	artifacts := make(map[string]Artifact)
 
 	value := FlowRun{
-		ID:          id.String(),
-		FlowName:    flowName,
-		NodesLeft:   nodesLeft,
-		Status:      FLOWRUN_IDLE,
-		WaitingURLs: waitingUrls,
-		Artifacts:   artifacts,
+		ID:           id.String(),
+		FlowName:     flowName,
+		NodesLeft:    nodesLeft,
+		RunningNodes: make(map[int]*asynq.TaskInfo),
+		Status:       FLOWRUN_IDLE,
+		WaitingURLs:  waitingUrls,
+		Artifacts:    artifacts,
 	}
+
+	f.initalizeWaitingURLs(&value)
 
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -150,6 +156,7 @@ func (f *FlowService) initalizeWaitingURLs(flowrun *FlowRun) error {
 		WaitingURL := WaitingURL{
 			Artifact: artifact,
 			PutURL:   url.String(),
+			TTL:      time.Now().Add(10 * time.Second),
 		}
 
 		flowrun.WaitingURLs = append(flowrun.WaitingURLs, WaitingURL)
@@ -163,54 +170,6 @@ func (f *FlowService) initalizeWaitingURLs(flowrun *FlowRun) error {
 
 	return nil
 }
-
-func (f *FlowService) getDataWellKey(key string, flowrun FlowRun) string {
-	return key
-}
-
-// func (f *FlowService) initalizeWaitingURLs(flowrun *FlowRun) error {
-
-// 	for nodeID := range f.NodeLength(flowrun.FlowName) {
-// 		node := f.GetNode(flowrun.FlowName, nodeID)
-// 		for _, input := range node.Inputs {
-// 			if input.Store == nil {
-// 				continue
-// 			}
-
-// 			store, ok := f.GetStore(flowrun.FlowName, *input.Store)
-// 			if !ok {
-// 				continue
-// 			}
-
-// 			artifact := Artifact{
-// 				StoreName:  *input.Store,
-// 				ObjectName: input.Edge,
-// 			}
-
-// 			url, err := store.PutURL(context.TODO(), artifact.ObjectName, 10*time.Second)
-// 			if err != nil {
-// 				fmt.Println(err)
-// 				continue
-// 			}
-
-// 			waitingURL := WaitingURL{
-// 				Artifact: artifact,
-// 				PutURL:   url.String(),
-// 			}
-
-// 			flowrun.WaitingURLs = append(flowrun.WaitingURLs, waitingURL)
-
-// 		}
-// 	}
-
-// 	err := f.updateFlowRun(*flowrun)
-// 	if err != nil {
-// 		fmt.Println(err)f
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 func (f *FlowService) checkWaitingUrls(flowrun *FlowRun) (bool, error) {
 
@@ -234,4 +193,36 @@ func (f *FlowService) checkWaitingUrls(flowrun *FlowRun) (bool, error) {
 	}
 
 	return fileExists, nil
+}
+
+type WaitingURLResult int
+
+const (
+	WaitNoChange   WaitingURLResult = iota
+	WaitReady                       // Object Exists
+	WaitURLExpired                  // URL Expired
+	WaitFailed                      // Non retryable error
+)
+
+func (f *FlowService) checkWaitingURL(flowrun *FlowRun, w WaitingURL) WaitingURLResult {
+	/*
+		if time.Now().After(w.TTL) {
+			return WaitURLExpired
+		}
+	*/
+	store, ok := f.GetStore(flowrun.FlowName, w.Artifact.StoreName)
+	if !ok {
+		return WaitFailed
+	}
+	exists := store.Exists(w.Artifact.ObjectName)
+	if exists {
+		return WaitReady
+	}
+
+	return WaitNoChange
+}
+
+func (f *FlowService) getDataWellKey(key string, flowrun FlowRun) string {
+	// TODO: implement
+	return key
 }

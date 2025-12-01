@@ -3,8 +3,8 @@ package flows
 import (
 	"context"
 	"fmt"
-	"log"
 	"pupload/internal/models"
+	"pupload/internal/util"
 	"time"
 )
 
@@ -48,66 +48,94 @@ func (f *FlowService) StartFlow(ctx context.Context, name string) (string, error
 }
 
 func (f *FlowService) HandleStepFlow(ctx context.Context, id string) error {
+	mutex_key := fmt.Sprintf("flowrunlock:%s", id)
+	ok, err := util.AcquireLock(f.RedisClient, mutex_key, time.Second*10)
+	if err != nil {
+		return err
+	}
+
+	if !ok {
+		return fmt.Errorf("flowrun %s currently being stepped", id)
+	}
+
+	defer util.ReleaseLock(f.RedisClient, mutex_key)
 
 	run, err := f.GetFlowRun(id)
 	if err != nil {
 		return fmt.Errorf("Can't retrieve flow status %s. Is Redis running? %s", id, err)
 	}
 
-	if len(run.NodesLeft) == 0 {
-		run.Status = FLOWRUN_COMPLETE
-		f.updateFlowRun(run)
-		return nil
+	newRun, err := f.stepFlow(context.TODO(), run)
+	if err != nil {
+		return fmt.Errorf("error stepping flow")
 	}
 
-	nodesToRun := f.nodesAvailableToRun(run)
+	// prettyStruct, _ := json.MarshalIndent(newRun, "", "    ")
+	// f.log.Info("updated run info", "data", string(prettyStruct))
 
-	switch run.Status {
-	case FLOWRUN_IDLE:
-
-		f.initalizeWaitingURLs(&run)
-
-		if len(nodesToRun) == 0 {
-			run.Status = FLOWRUN_WAITING
-			f.updateFlowRun(run)
-			return f.HandleStepFlow(ctx, id)
-		}
-
-		run.Status = FLOWRUN_RUNNING
-		f.updateFlowRun(run)
-		return f.HandleStepFlow(ctx, id)
-
-	case FLOWRUN_WAITING:
-
-		updated, err := f.checkWaitingUrls(&run)
-		if err != nil {
-			log.Fatalf("Error in flow step function: %s", err)
-		}
-
-		if updated {
-			run.Status = FLOWRUN_RUNNING
-			f.updateFlowRun(run)
-			return f.HandleStepFlow(ctx, id)
-		}
-
-		if err := f.EnqueueFlowStepTask(id, time.Second*3); err != nil {
-			log.Printf("Error Enqueing Step: %s", err)
-		}
-
-		return nil
-
-	case FLOWRUN_RUNNING:
-
-		for _, nodeIndex := range nodesToRun {
-			f.HandleExecuteNode(run, nodeIndex)
-		}
-
-		run.Status = FLOWRUN_WAITING
-		f.updateFlowRun(run)
-		return f.HandleStepFlow(ctx, id)
-	}
+	f.updateFlowRun(newRun)
 
 	return nil
+}
+
+func (f *FlowService) stepFlow(ctx context.Context, run FlowRun) (FlowRun, error) {
+	for {
+
+		f.log.Info("stepFlow state", "runID", run.ID, "state", run.Status)
+
+		if len(run.NodesLeft) == 0 {
+			run.Status = FLOWRUN_COMPLETE
+			return run, nil
+
+		}
+
+		nodesToRun := f.nodesAvailableToRun(run)
+
+		switch run.Status {
+		case FLOWRUN_IDLE:
+			if len(nodesToRun) == 0 {
+				run.Status = FLOWRUN_WAITING
+			}
+
+			run.Status = FLOWRUN_RUNNING
+
+		case FLOWRUN_WAITING:
+
+			shouldChangeToRunning := false
+			for i, url := range run.WaitingURLs {
+				result := f.checkWaitingURL(&run, url)
+				f.log.Info("URL waiting state", "state", result)
+
+				switch result {
+				case WaitNoChange:
+
+				case WaitReady:
+					run.Status = FLOWRUN_RUNNING
+					shouldChangeToRunning = true
+					run.WaitingURLs = append(run.WaitingURLs[:i], run.WaitingURLs[i+1:]...)
+					run.Artifacts[url.Artifact.EdgeName] = url.Artifact
+
+				case WaitURLExpired:
+
+				case WaitFailed:
+					return run, fmt.Errorf("Checking WaitURL failed")
+				}
+
+			}
+
+			if !shouldChangeToRunning {
+				return run, nil
+			}
+
+		case FLOWRUN_RUNNING:
+			for _, nodeIndex := range nodesToRun {
+				f.HandleExecuteNode(&run, nodeIndex)
+			}
+
+			run.Status = FLOWRUN_WAITING
+		}
+	}
+
 }
 
 func (f *FlowService) GetStore(flowName string, storeName string) (store models.Store, ok bool) {
@@ -130,6 +158,10 @@ func (f *FlowService) nodesAvailableToRun(flowRun FlowRun) []int {
 	nodes := make([]int, 0)
 
 	for i := range flowRun.NodesLeft {
+
+		if _, running := flowRun.RunningNodes[i]; running {
+			continue
+		}
 
 		runnable := true
 

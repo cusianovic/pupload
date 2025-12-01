@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"pupload/internal/controller/scheduler"
 	"pupload/internal/logging"
 	"pupload/internal/models"
 	"pupload/internal/stores"
@@ -36,10 +37,13 @@ type FlowService struct {
 	AsynqClient *asynq.Client
 	AsynqServer *asynq.Server
 
-	log *slog.Logger
+	scheduler *scheduler.Scheduler
+	log       *slog.Logger
 }
 
 func CreateFlowService(dataPath string, rdb *redis.Client) *FlowService {
+
+	slog := logging.ForService("flow")
 
 	localStoreMap := make(map[LocalStoreKey]models.Store)
 	globalStoreMap := make(map[string]models.Store)
@@ -57,6 +61,13 @@ func CreateFlowService(dataPath string, rdb *redis.Client) *FlowService {
 		},
 	})
 
+	flowRunScheduleProvider := CreateFlowRunScheduleProvider(rdb, "@every 10s")
+	flowRunScheduler, err := scheduler.NewScheduler(&flowRunScheduleProvider, rdb)
+	if err != nil {
+		slog.Error("could not create flow run scheduler", "err", err)
+		panic("")
+	}
+
 	f := FlowService{
 		FlowPath:       flowPath,
 		FlowList:       flowMap,
@@ -66,7 +77,9 @@ func CreateFlowService(dataPath string, rdb *redis.Client) *FlowService {
 		AsynqServer:    asynqServer,
 		LocalStoreMap:  localStoreMap,
 		GlobalStoreMap: globalStoreMap,
-		log:            logging.ForService("flow"),
+
+		log:       slog,
+		scheduler: flowRunScheduler,
 	}
 
 	if _, err := os.Stat(flowPath); err != nil {
@@ -129,6 +142,10 @@ func CreateFlowService(dataPath string, rdb *redis.Client) *FlowService {
 		asynqServer.Start(f.AsynqConfigureHandlers())
 	}()
 
+	go func() {
+		flowRunScheduler.Start()
+	}()
+
 	f.log.Info("Flows", "flows", f.FlowList)
 
 	return &f
@@ -138,9 +155,12 @@ func (f *FlowService) Close() {
 	f.AsynqServer.Stop()
 	f.AsynqClient.Close()
 	f.RedisClient.Close()
+
+	f.scheduler.Close()
 }
 
-func (f *FlowService) ValidateFlow(flow models.Flow) error {
+func (f *FlowService) ValidateFlow(flow *models.Flow) error {
+
 	// Check that all node definitions exist
 
 	// Check that all edges are valid
@@ -162,7 +182,12 @@ func (f *FlowService) ValidateFlow(flow models.Flow) error {
 		if well.Type == "dynamic" && well.Key != nil && validateKey(*well.Key) {
 			return fmt.Errorf("Data well %s key is invalid", well.Edge)
 		}
+	}
 
+	// Check if DefaultStore is set
+	if flow.DefaultStore == nil {
+		storeName := flow.Stores[0]
+		flow.DefaultStore = &storeName.Name
 	}
 
 	return nil
@@ -188,7 +213,7 @@ func (f *FlowService) processAndValidateFlow(data []byte, name string) (models.F
 		f.LocalStoreMap[LocalStoreKey{name, storeInput.Name}] = store
 	}
 
-	validateErr := f.ValidateFlow(flow)
+	validateErr := f.ValidateFlow(&flow)
 	if validateErr != nil {
 		return flow, validateErr
 	}

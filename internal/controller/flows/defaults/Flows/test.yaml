@@ -3,12 +3,20 @@ Stores:
     Type: s3local
     Params:
       BucketName: test123
+
+  - Name: FileStore
+    Type: s3fs
+    Params:
+      BucketName: testfs
+      MountPath: /home/seb/data/fsdata
       
+DefaultStore: FileStore
+
 AvailableNodes:
   - pupload/ffmpeg
 
 DataWells:
-  - Store: TestStore
+  - Store: FileStore
     Edge: teststore_input
     Type: dynamic
 

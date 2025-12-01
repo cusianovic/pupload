@@ -11,7 +11,14 @@ type FlowStepPayload struct {
 	RunID string
 }
 
+type NodeFinishedPayload struct {
+	RunID string
+
+	Logs []LogRecord
+}
+
 type NodeExecutePayload struct {
+	RunID      string
 	NodeDef    NodeDef
 	Node       Node
 	InputURLs  map[string]string

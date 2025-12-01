@@ -15,11 +15,12 @@ func (f *FlowService) AsynqConfigureHandlers() *asynq.ServeMux {
 	mux := asynq.NewServeMux()
 
 	mux.HandleFunc(models.TypeFlowStep, f.HandleFlowStepTask)
-	mux.HandleFunc(models.TypeNodeFinished, HandleNodeFinishedTask)
+	mux.HandleFunc(models.TypeNodeFinished, f.HandleNodeFinishedTask)
 
 	return mux
 
 }
+
 func (f *FlowService) HandleFlowStepTask(ctx context.Context, t *asynq.Task) error {
 	var p models.FlowStepPayload
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
@@ -27,9 +28,10 @@ func (f *FlowService) HandleFlowStepTask(ctx context.Context, t *asynq.Task) err
 		return err
 	}
 
-	log.Printf("Running Flow ID: %s\n", p.RunID)
-
-	go f.HandleStepFlow(ctx, p.RunID)
+	err := f.HandleStepFlow(ctx, p.RunID)
+	if err != nil {
+		f.log.Error("error stepping flow", "err", err)
+	}
 
 	return nil
 }

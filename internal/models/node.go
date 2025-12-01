@@ -28,7 +28,7 @@ type NodeEdgeDef struct {
 type NodeCommandDef struct {
 	Name        string
 	Description string
-	Exec        []string
+	Exec        string
 }
 
 type Node struct {

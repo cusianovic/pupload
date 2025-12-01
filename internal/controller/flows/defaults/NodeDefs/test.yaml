@@ -29,6 +29,4 @@ Flags:
 Command:
   Name: Encode
   Description: ""
-  Exec: 
-       - ffmpeg 
-       - -f ${VideoStream}
+  Exec: -f image2 -i ${VideoStream} -vcodec mjpeg -f image2 ${VideoOut}

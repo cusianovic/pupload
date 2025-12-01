@@ -3,25 +3,45 @@ package node
 import (
 	"archive/tar"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
+	"pupload/internal/logging"
 	"pupload/internal/models"
 	"pupload/internal/worker/container"
 	"slices"
 
 	"github.com/google/uuid"
+	"github.com/hibiken/asynq"
 )
 
 type NodeService struct {
+	AsynqClient      *asynq.Client
 	ContainerService *container.ContainerService
 }
 
-func CreateNodeService(cs *container.ContainerService) NodeService {
+func CreateNodeService(cs *container.ContainerService, asynqClient *asynq.Client) NodeService {
 	return NodeService{
+		AsynqClient:      asynqClient,
 		ContainerService: cs,
 	}
+}
+
+func (ns NodeService) AddEnvFlagMap(m map[string]string, nodeDef models.NodeDef, node models.Node) error {
+
+	flags, err := ns.GetFlags(nodeDef, node)
+	if err != nil {
+		return err
+	}
+
+	// TODO: ensure this can't be escaped
+	for key, val := range flags {
+		m[key] = val
+	}
+
+	return nil
 }
 
 func (ns NodeService) GetEnvArray(nodeDef models.NodeDef, node models.Node) ([]string, error) {
@@ -41,9 +61,18 @@ func (ns NodeService) GetEnvArray(nodeDef models.NodeDef, node models.Node) ([]s
 	return env, nil
 }
 
-func (ns NodeService) GetOutputPaths() ([]string, error) {
+func (ns NodeService) GetOutputPaths(outputs map[string]string, base_path string) (map[string]string, error) {
 
-	return nil, nil
+	out := make(map[string]string, len(outputs))
+
+	for name := range outputs {
+		id := uuid.Must(uuid.NewV7())
+		path := path.Join(base_path, id.String())
+
+		out[name] = path
+	}
+
+	return out, nil
 }
 
 type InputStreamOutput struct {
@@ -109,6 +138,49 @@ func (ns NodeService) GetInputStreams(inputs map[string]string, base_path string
 	}
 
 	return out
+}
+
+func (ns NodeService) UploadTarReaderToS3(ctx context.Context, presigned_upload string, tarStream io.Reader) error {
+	l := logging.LoggerFromCtx(ctx)
+
+	tr := tar.NewReader(tarStream)
+
+	var hdr *tar.Header
+
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			return err
+		}
+
+		if h.Typeflag == tar.TypeReg {
+			hdr = h
+			break
+		}
+	}
+
+	req, err := http.NewRequest(http.MethodPut, presigned_upload, tr)
+	if err != nil {
+		return err
+	}
+
+	req.ContentLength = hdr.Size
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+
+	l.Info("upload status", "status_code", resp.StatusCode, "message", resp.Status)
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	return nil
 }
 
 func (ns NodeService) GetFlags(nodeDef models.NodeDef, node models.Node) (map[string]string, error) {

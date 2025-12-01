@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"io"
 	"log/slog"
 	"os"
 	"sync"
@@ -17,20 +18,25 @@ type Config struct {
 	AppName string
 	Level   slog.Leveler
 	Format  string // "json" or "text"
+	Out     io.Writer
 }
 
 func Init(cfg Config) {
 	once.Do(func() {
 		var handler slog.Handler
 
+		if cfg.Out == nil {
+			cfg.Out = os.Stdout
+		}
+
 		switch cfg.Format {
 		case "json":
-			handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			handler = slog.NewJSONHandler(cfg.Out, &slog.HandlerOptions{
 				Level: cfg.Level,
 			})
 
 		default:
-			handler = tint.NewHandler(os.Stdout, &tint.Options{
+			handler = tint.NewHandler(cfg.Out, &tint.Options{
 				Level: cfg.Level,
 			})
 		}
