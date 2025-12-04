@@ -7,7 +7,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func AcquireLock(client *redis.Client, key string, duration time.Duration) (bool, error) {
+func AcquireLock(client *redis.Client, key, value string, duration time.Duration) (bool, error) {
 
 	result, err := client.SetNX(context.TODO(), key, "lock", duration).Result()
 	if err != nil {

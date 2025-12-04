@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	config "pupload/internal/controller/config"
-	"pupload/internal/controller/flows"
+	flows "pupload/internal/controller/flows/service"
 	controllerserver "pupload/internal/controller/server"
 	"pupload/internal/logging"
 
@@ -25,7 +25,7 @@ func main() {
 		Addr: "localhost:6379",
 	})
 
-	f := flows.CreateFlowService(config.Storage.DataPath, rdb)
+	f := flows.CreateFlowService(rdb)
 	defer f.Close()
 
 	srv := &http.Server{

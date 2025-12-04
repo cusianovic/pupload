@@ -7,9 +7,11 @@ import (
 	"github.com/hibiken/asynq"
 )
 
-func NewNodeFinishedTask(logs []models.LogRecord) *asynq.Task {
+func NewNodeFinishedTask(RunID, NodeID string, logs []models.LogRecord) *asynq.Task {
 	payload, _ := json.Marshal(models.NodeFinishedPayload{
-		Logs: logs,
+		RunID:  RunID,
+		NodeID: NodeID,
+		Logs:   logs,
 	})
 
 	return asynq.NewTask(models.TypeNodeFinished, payload, asynq.Queue("controller"))

@@ -32,7 +32,7 @@ type NodeCommandDef struct {
 }
 
 type Node struct {
-	ID      int
+	ID      string
 	DefName string
 	Inputs  []NodeEdge
 	Outputs []NodeEdge

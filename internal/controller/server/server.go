@@ -5,7 +5,7 @@ import (
 	"net/http"
 	v1 "pupload/internal/controller/api/v1"
 	config "pupload/internal/controller/config"
-	flows "pupload/internal/controller/flows"
+	flows "pupload/internal/controller/flows/service"
 	"time"
 
 	"github.com/go-chi/chi/v5"

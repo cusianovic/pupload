@@ -25,11 +25,11 @@ func (h *CollectHandler) Handle(ctx context.Context, r slog.Record) error {
 		Time:   r.Time,
 		Level:  r.Level.String(),
 		Msg:    r.Message,
-		Fields: map[string]any{},
+		Fields: map[string]string{},
 	}
 
 	r.Attrs(func(a slog.Attr) bool {
-		rec.Fields[a.Key] = a.Value.Any()
+		rec.Fields[a.Key] = a.Value.String()
 		return true
 	})
 

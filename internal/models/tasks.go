@@ -12,9 +12,9 @@ type FlowStepPayload struct {
 }
 
 type NodeFinishedPayload struct {
-	RunID string
-
-	Logs []LogRecord
+	RunID  string
+	NodeID string
+	Logs   []LogRecord
 }
 
 type NodeExecutePayload struct {

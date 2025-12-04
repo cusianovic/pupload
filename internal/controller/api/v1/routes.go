@@ -2,7 +2,7 @@ package v1
 
 import (
 	"net/http"
-	"pupload/internal/controller/flows"
+	flows "pupload/internal/controller/flows/service"
 
 	"github.com/go-chi/chi/v5"
 )
