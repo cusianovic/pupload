@@ -40,6 +40,7 @@ func CreateRuntimeFlow(flow models.Flow, nodeDefs []models.NodeDef) (RuntimeFlow
 		nodes:  make(map[string]RuntimeNode),
 	}
 
+	runtimeFlow.constructLogger()
 	runtimeFlow.constructStores()
 	err := runtimeFlow.constructRuntimeNode()
 	if err != nil {
@@ -47,9 +48,8 @@ func CreateRuntimeFlow(flow models.Flow, nodeDefs []models.NodeDef) (RuntimeFlow
 	}
 
 	runtimeFlow.createFlowRun()
-	runtimeFlow.constructLogger()
 
-	if err := runtimeFlow.initialDatawellProcessing(); err != nil {
+	if err := runtimeFlow.initialDatawellInput(); err != nil {
 		return runtimeFlow, err
 	}
 
@@ -61,9 +61,9 @@ func (rt *RuntimeFlow) RebuildRuntimeFlow() {
 	rt.nodes = make(map[string]RuntimeNode)
 	rt.stores = make(map[string]models.Store)
 
+	rt.constructLogger()
 	rt.constructStores()
 	rt.constructRuntimeNode()
-	rt.constructLogger()
 }
 
 func (rt *RuntimeFlow) createFlowRun() {
@@ -114,7 +114,7 @@ func (rt *RuntimeFlow) constructStores() {
 	for _, storeInput := range rt.Flow.Stores {
 		store, err := stores.UnmarshalStore(storeInput)
 		if err != nil {
-			// f.log.Warn("Invalid store definition", "flow", name, "store", storeInput.Name, "error", err.Error())
+			rt.log.Warn("Invalid store definition", "flow", rt.Flow.Name, "store", storeInput.Name, "error", err.Error())
 			continue
 		}
 
@@ -126,14 +126,23 @@ func (rt *RuntimeFlow) constructLogger() {
 	rt.log = logging.ForService("flow_runtime").With("run_id", rt.FlowRun.ID)
 }
 
-func (rt *RuntimeFlow) initialDatawellProcessing() error {
+func (rt *RuntimeFlow) initialDatawellInput() error {
 	for _, dw := range rt.Flow.DataWells {
 
 		var err error
 
-		switch dw.Type {
-		case "dynamic":
-			err = rt.handleDynamicWaitingURL(dw)
+		if dw.Source == nil {
+			continue
+		}
+
+		switch *dw.Source {
+		case "upload":
+			err = rt.handleUploadDatawell(dw)
+
+		case "static":
+			// TODO: implement static resource grab
+		case "webhook":
+			// TODO: implement webhook data source
 		}
 
 		if err != nil {
@@ -146,20 +155,11 @@ func (rt *RuntimeFlow) initialDatawellProcessing() error {
 	return nil
 }
 
-func (rt *RuntimeFlow) handleDynamicWaitingURL(dw models.DataWell) error {
-
-	// If a datawell is referenced as an output (i.e it takes in an input),
-	// that means it is ineligable for generating a waiting URL.
-	for _, nodes := range rt.nodes {
-		for _, output := range nodes.Outputs {
-			if output.Edge == dw.Edge {
-				return nil
-			}
-		}
-	}
+func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 
 	key := rt.processDatawellKey(dw)
 	store, ok := rt.stores[dw.Store]
+	fmt.Println(store)
 	if !ok {
 		return fmt.Errorf("store %s does not exist", dw.Store)
 	}

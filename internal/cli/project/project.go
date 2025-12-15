@@ -44,6 +44,8 @@ func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun,
 		return nil, err
 	}
 
+	flow.Normalize()
+
 	node_defs, err := GetNodeDefs(projectRoot)
 	if err != nil {
 		return nil, err

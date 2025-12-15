@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"pupload/internal/models"
 	locals3 "pupload/internal/stores/local_s3"
+	"pupload/internal/stores/s3"
 	s3fs "pupload/internal/stores/s3_fs"
 )
 
@@ -14,7 +15,17 @@ func UnmarshalStore(input models.StoreInput) (models.Store, error) {
 	switch input.Type {
 
 	case "s3":
-		return nil, nil
+		var params s3.S3StoreInput
+		if err := decodeParams(input.Params, &params); err != nil {
+			return nil, fmt.Errorf("error decoding params for s3local, %w", err)
+		}
+
+		store, err := s3.NewS3Store(params)
+		if err != nil {
+			return nil, fmt.Errorf("Unable to create s3 store: %w", err)
+		}
+
+		return store, nil
 
 	case "s3local":
 		var params locals3.LocalS3StoreInput

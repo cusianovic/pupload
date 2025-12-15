@@ -3,7 +3,6 @@ package s3
 import (
 	"context"
 	"crypto/tls"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -18,7 +17,23 @@ type S3Store struct {
 	bucket   string
 }
 
-func NewS3Store(endpoint, accessKeyID, secretAccessKey, location, bucket string) *S3Store {
+type S3StoreInput struct {
+	Endpoint   string
+	BucketName string
+	Location   string
+	AccessKey  string
+	SecretKey  string
+
+	Secure *bool
+}
+
+func NewS3Store(input S3StoreInput) (*S3Store, error) {
+
+	if input.Secure == nil {
+		input.Secure = new(bool)
+		*input.Secure = true
+	}
+
 	transport := &http.Transport{
 		Proxy:               http.ProxyFromEnvironment,
 		MaxIdleConns:        200,
@@ -30,21 +45,21 @@ func NewS3Store(endpoint, accessKeyID, secretAccessKey, location, bucket string)
 		},
 	}
 
-	minioClient, err := minio.New(endpoint, &minio.Options{
-		Creds:     credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
-		Secure:    true,
+	minioClient, err := minio.New(input.Endpoint, &minio.Options{
+		Creds:     credentials.NewStaticV4(input.AccessKey, input.SecretKey, ""),
+		Secure:    *input.Secure,
 		Transport: transport,
 	})
 
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 
 	return &S3Store{
 		client:   minioClient,
-		location: location,
-		bucket:   bucket,
-	}
+		location: input.Location,
+		bucket:   input.BucketName,
+	}, nil
 }
 
 /*
@@ -73,11 +88,11 @@ func (s *S3Store) PutFromStream(ctx context.Context, objectName string, data io.
 }
 */
 
-func (s *S3Store) PutPresignedURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
+func (s *S3Store) PutURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
 	return s.client.PresignedPutObject(ctx, s.bucket, objectName, expires)
 }
 
-func (s *S3Store) GetPresignedURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
+func (s *S3Store) GetURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
 	return s.client.PresignedGetObject(ctx, s.bucket, objectName, expires, url.Values{})
 }
 
@@ -87,4 +102,13 @@ func (s *S3Store) DeleteObject(ctx context.Context, objectName string) error {
 
 func (s *S3Store) Close() {
 
+}
+
+func (s *S3Store) Exists(objectName string) bool {
+	_, err := s.client.StatObject(context.TODO(), s.bucket, objectName, minio.GetObjectOptions{})
+	if err != nil {
+		return false
+	}
+
+	return true
 }

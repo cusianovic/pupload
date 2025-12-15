@@ -8,9 +8,14 @@ import (
 )
 
 type StoreInput struct {
-	Name   string
-	Type   string
+	Name string
+	Type string
+
 	Params json.RawMessage
+}
+
+func (s *StoreInput) Normalize() {
+
 }
 
 type Store interface {

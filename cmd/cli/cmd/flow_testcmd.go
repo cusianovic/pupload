@@ -4,6 +4,7 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"pupload/internal/cli/project"
 	"pupload/internal/cli/ui"
 
@@ -26,10 +27,11 @@ to quickly create a Cobra application.`,
 			return err
 		}
 
-		run, err := project.TestFlow(root, "http://localhost:1234/", "watermark_test")
+		run, err := project.TestFlow(root, "http://localhost:1234/", "testFlow")
 		if err != nil {
 			return err
 		}
+		fmt.Printf("shit failed")
 
 		ui.TestFlowUI(*run)
 

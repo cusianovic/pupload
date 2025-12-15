@@ -6,6 +6,7 @@ import (
 	"pupload/internal/controller/flows/repo"
 	runtime_repo "pupload/internal/controller/flows/repo/runtime"
 	"pupload/internal/controller/flows/runtime"
+	"pupload/internal/validation"
 
 	"pupload/internal/controller/scheduler"
 	"pupload/internal/logging"
@@ -89,8 +90,11 @@ func (f *FlowService) Close() {
 }
 
 func (f *FlowService) RunFlow(flow models.Flow, nodeDefs []models.NodeDef) (models.FlowRun, error) {
-	err := f.ValidateFlow(&flow)
-	if err != nil {
+	// err := f.ValidateFlow(&flow)
+
+	flow.Normalize()
+
+	if err := validation.ValidateFlow(flow); err != nil {
 		f.log.Error("unable to validate flow", "err", err)
 		return models.FlowRun{}, err
 	}

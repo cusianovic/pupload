@@ -80,14 +80,14 @@ func (rt *RuntimeFlow) makeOutputArtifact(edge models.NodeEdge) (*models.Artifac
 		return &artifact, nil
 	}
 
-	if rt.Flow.DefaultStore == nil {
-		return nil, fmt.Errorf("default store is nil")
+	if rt.Flow.DefaultDataWell == nil {
+		return nil, fmt.Errorf("default datawell is nil")
 	}
 
 	artifact := models.Artifact{
-		StoreName:  *rt.Flow.DefaultStore,
-		ObjectName: fmt.Sprintf("%s-%s", edge.Edge, rt.FlowRun.ID),
+		StoreName:  rt.Flow.DefaultDataWell.Store,
 		EdgeName:   edge.Edge,
+		ObjectName: fmt.Sprintf("%s-%s", edge.Edge, rt.FlowRun.ID),
 	}
 
 	return &artifact, nil
