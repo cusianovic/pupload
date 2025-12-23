@@ -2,11 +2,10 @@ package runtime
 
 import (
 	"pupload/internal/models"
-
-	"github.com/hibiken/asynq"
+	"pupload/internal/syncplane"
 )
 
-func (rt *RuntimeFlow) Step(asynqClient *asynq.Client) {
+func (rt *RuntimeFlow) Step(s syncplane.SyncLayer) {
 	for {
 
 		rt.log.Info("stepFlow state", "runID", rt.FlowRun.ID, "state", rt.FlowRun.Status)
@@ -32,7 +31,7 @@ func (rt *RuntimeFlow) Step(asynqClient *asynq.Client) {
 
 		case models.FLOWRUN_RUNNING:
 			for _, nodeID := range rt.nodesReady() {
-				if err := rt.handleExecuteNode(nodeID, asynqClient); err != nil {
+				if err := rt.handleExecuteNode(nodeID, s); err != nil {
 					rt.log.Error("error executing node", "err", err, "node_id", nodeID)
 					rt.FlowRun.Status = models.FLOWRUN_ERROR
 					return

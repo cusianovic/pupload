@@ -7,10 +7,10 @@ import (
 	"pupload/internal/logging"
 	"pupload/internal/models"
 	"pupload/internal/stores"
+	"pupload/internal/syncplane"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
 )
 
 type RuntimeFlow struct {
@@ -170,7 +170,7 @@ func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 		EdgeName:   dw.Edge,
 	}
 
-	url, err := store.PutURL(context.TODO(), artifact.ObjectName, 10*time.Second)
+	url, err := store.PutURL(context.TODO(), artifact.ObjectName, 1*time.Hour)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 	waitingURL := models.WaitingURL{
 		Artifact: artifact,
 		PutURL:   url.String(),
-		TTL:      time.Now().Add(10 * time.Second),
+		TTL:      time.Now().Add(1 * time.Hour),
 	}
 
 	rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs, waitingURL)
@@ -196,7 +196,7 @@ func (rt *RuntimeFlow) processDatawellKey(dw models.DataWell) string {
 
 // Returns nil if flow is already running.
 // Returns error if flow is in error state or already complete
-func (rt *RuntimeFlow) Start(client *asynq.Client) error {
+func (rt *RuntimeFlow) Start(s syncplane.SyncLayer) error {
 	switch rt.FlowRun.Status {
 
 	case models.FLOWRUN_STOPPED:
@@ -216,6 +216,6 @@ func (rt *RuntimeFlow) Start(client *asynq.Client) error {
 		return fmt.Errorf("no case")
 	}
 
-	rt.Step(client)
+	rt.Step(s)
 	return nil
 }

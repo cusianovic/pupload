@@ -7,6 +7,7 @@ import (
 	flows "pupload/internal/controller/flows/service"
 	controllerserver "pupload/internal/controller/server"
 	"pupload/internal/logging"
+	"pupload/internal/syncplane"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -25,7 +26,23 @@ func main() {
 		Addr: "localhost:6379",
 	})
 
-	f := flows.CreateFlowService(rdb)
+	test_sync_config := syncplane.SyncPlaneSettings{
+		SelectedSyncPlane: "redis",
+
+		Redis: syncplane.RedisSettings{
+			Address: "localhost:6379",
+		},
+
+		ControllerStepInterval: "@every 10s",
+	}
+
+	s, err := syncplane.CreateControllerSyncLayer(test_sync_config)
+	if err != nil {
+
+	}
+	defer s.Close()
+
+	f := flows.CreateFlowService(rdb, s)
 	defer f.Close()
 
 	srv := &http.Server{

@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	mimetypes "pupload/internal/mimetype"
 	"pupload/internal/models"
 	"slices"
 )
@@ -16,6 +17,10 @@ func ValidateFlow(flow models.Flow, nodeDefs []models.NodeDef) error {
 	// Check that all edges are valid
 
 	// Check for cycles
+
+	if !isFlowDAG(flow) {
+		return fmt.Errorf("Flow %s contains cycles", flow.Name)
+	}
 
 	// Check that all stores are valid
 
@@ -48,8 +53,14 @@ func typeCheckFlow(flow models.Flow, nodeDefs []models.NodeDef) error {
 
 	// edgeTypeMap := make(map[string]string)
 
+	type EdgeNodeKey [2]string
+
+	inputSet := make(map[EdgeNodeKey]mimetypes.MimeSet)
+	outputSet := make(map[string]mimetypes.MimeSet)
+
 	for _, node := range flow.Nodes {
-		def := new(models.NodeDef)
+
+		var def *models.NodeDef
 
 		for _, d := range nodeDefs {
 			if d.Name == node.DefName {
@@ -61,9 +72,53 @@ func typeCheckFlow(flow models.Flow, nodeDefs []models.NodeDef) error {
 			return ErrNodeDefNotFound
 		}
 
+		for _, inEdge := range node.Inputs {
+			var edgeDef models.NodeEdgeDef
+			for _, ed := range def.Inputs {
+				if ed.Name == inEdge.Name {
+					edgeDef = ed
+				}
+			}
+
+			set, err := mimetypes.CreateMimeSet(edgeDef.Type)
+			if err != nil {
+				return fmt.Errorf("Error type checking node %s on flow %s: %w", node.ID, flow.Name, err)
+			}
+
+			inputSet[EdgeNodeKey{inEdge.Edge, node.ID}] = *set
+		}
+
+		for _, outEdge := range node.Outputs {
+			var edgeDef models.NodeEdgeDef
+			for _, ed := range def.Outputs {
+				if ed.Name == outEdge.Name {
+					edgeDef = ed
+				}
+			}
+
+			set, err := mimetypes.CreateMimeSet(edgeDef.Type)
+			if err != nil {
+				return fmt.Errorf("Error type checking node %s on flow %s: %w", node.ID, flow.Name, err)
+			}
+
+			outputSet[outEdge.Edge] = *set
+		}
+	}
+
+	for _, node := range flow.Nodes {
+		for _, in := range node.Inputs {
+			inputTypes := inputSet[EdgeNodeKey{in.Edge, node.ID}]
+			outputTypes := outputSet[in.Edge]
+
+			intersection := inputTypes.Intersection(outputTypes)
+			if intersection.IsEmpty() {
+				return fmt.Errorf("no type overlap between input %s and output on edge %s", in.Name, in.Edge)
+			}
+		}
 	}
 
 	return nil
+
 }
 
 func doTypeSetsOverlap() {
@@ -86,7 +141,54 @@ func isValidDatawellSource(dw models.DataWell) bool {
 
 func isFlowDAG(flow models.Flow) bool {
 
-	return true
+	edgeProducers := make(map[string]string)
+	edgeConsumers := make(map[string][]string)
+
+	for _, node := range flow.Nodes {
+		for _, output := range node.Outputs {
+			edgeProducers[output.Edge] = node.ID
+		}
+
+		for _, input := range node.Inputs {
+			edgeConsumers[input.Edge] = append(edgeConsumers[input.Edge], node.ID)
+		}
+	}
+
+	adjacencyList := make(map[string][]string)
+	inDegree := make(map[string]int)
+
+	for edgeName, producerID := range edgeProducers {
+		consumers := edgeConsumers[edgeName]
+		for _, consumerID := range consumers {
+			adjacencyList[producerID] = append(adjacencyList[producerID], consumerID)
+			inDegree[consumerID]++
+		}
+	}
+
+	q := make([]string, 0)
+	for _, node := range flow.Nodes {
+		if inDegree[node.ID] == 0 {
+			q = append(q, node.ID)
+		}
+	}
+
+	processedCount := 0
+
+	for len(q) > 0 {
+		current := q[0]
+		q = q[1:]
+		processedCount++
+
+		for _, successor := range adjacencyList[current] {
+			inDegree[successor]--
+			if inDegree[successor] == 0 {
+				q = append(q, successor)
+			}
+		}
+
+	}
+
+	return processedCount == len(flow.Nodes)
 }
 
 type EdgeCount map[string]int

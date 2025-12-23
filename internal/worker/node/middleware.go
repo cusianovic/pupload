@@ -7,6 +7,7 @@ import (
 	"os"
 	"pupload/internal/logging"
 	"pupload/internal/models"
+	"pupload/internal/syncplane"
 
 	"github.com/hibiken/asynq"
 )
@@ -14,7 +15,7 @@ import (
 func (ns *NodeService) FinishedMiddleware(h asynq.Handler) asynq.Handler {
 	return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 
-		var p models.NodeExecutePayload
+		var p syncplane.NodeExecutePayload
 
 		if err := json.Unmarshal(t.Payload(), &p); err != nil {
 			return err

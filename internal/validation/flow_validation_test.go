@@ -289,8 +289,6 @@ func TestValidateFlow_InvalidEdge_NonexistentTargetNode(t *testing.T) {
 }
 
 func TestValidateFlow_CycleDetection(t *testing.T) {
-	t.Skip("Cycle detection not yet implemented")
-
 	flow := newTestFlow(t, func(f *models.Flow) {
 		// A -> B -> C -> A
 		f.Nodes = []models.Node{
@@ -322,6 +320,29 @@ func TestValidateFlow_CycleDetection(t *testing.T) {
 	err := ValidateFlow(flow, nodeDefs)
 	if err == nil {
 		t.Fatal("ValidateFlow() expected error for cycle in flow, got nil")
+	}
+}
+
+func TestValidateFlow_SelfReferenceCycle(t *testing.T) {
+	flow := newTestFlow(t, func(f *models.Flow) {
+		// Node A references itself: A -> A
+		f.Nodes = []models.Node{
+			{
+				ID:      "A",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "self-loop"}},
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "self-loop"}},
+			},
+		}
+	})
+
+	nodeDefs := []models.NodeDef{
+		newTestNodeDef(t, "test-def"),
+	}
+
+	err := ValidateFlow(flow, nodeDefs)
+	if err == nil {
+		t.Fatal("ValidateFlow() expected error for self-reference cycle, got nil")
 	}
 }
 
@@ -483,8 +504,6 @@ func TestGenerateEdgeCount_NodeWithOnlyOutputs(t *testing.T) {
 // ============================================================================
 
 func TestTypeCheckFlow_NodeDefNotFound(t *testing.T) {
-	t.Skip("typeCheckFlow is incomplete - missing return statement")
-
 	flow := models.Flow{
 		Name: "test-flow",
 		Nodes: []models.Node{
@@ -505,26 +524,213 @@ func TestTypeCheckFlow_NodeDefNotFound(t *testing.T) {
 	}
 }
 
-func TestTypeCheckFlow_ValidNodeDefinitions(t *testing.T) {
-	t.Skip("typeCheckFlow is incomplete - missing return statement")
-
+func TestTypeCheckFlow_ValidTypeMatch(t *testing.T) {
+	// Create a flow where node1 outputs to node2, with matching types
 	flow := models.Flow{
 		Name: "test-flow",
 		Nodes: []models.Node{
 			{
 				ID:      "node1",
-				DefName: "test-def",
+				DefName: "producer",
+				Outputs: []models.NodeEdge{{Name: "output", Edge: "shared-edge"}},
+			},
+			{
+				ID:      "node2",
+				DefName: "consumer",
+				Inputs:  []models.NodeEdge{{Name: "input", Edge: "shared-edge"}},
 			},
 		},
 	}
 
 	nodeDefs := []models.NodeDef{
-		newTestNodeDef(t, "test-def"),
+		{
+			ID:        1,
+			Publisher: "test",
+			Name:      "producer",
+			Image:     "test:latest",
+			Outputs:   []models.NodeEdgeDef{{Name: "output", Type: []models.MimeType{"text/plain"}}},
+		},
+		{
+			ID:        2,
+			Publisher: "test",
+			Name:      "consumer",
+			Image:     "test:latest",
+			Inputs:    []models.NodeEdgeDef{{Name: "input", Type: []models.MimeType{"text/plain"}}},
+		},
 	}
 
 	err := typeCheckFlow(flow, nodeDefs)
 	if err != nil {
-		t.Fatalf("typeCheckFlow() error = %v, want nil", err)
+		t.Fatalf("typeCheckFlow() error = %v, want nil for matching types", err)
+	}
+}
+
+func TestTypeCheckFlow_TypeMismatch(t *testing.T) {
+	// Create a flow where node1 outputs incompatible type to node2
+	flow := models.Flow{
+		Name: "test-flow",
+		Nodes: []models.Node{
+			{
+				ID:      "node1",
+				DefName: "producer",
+				Outputs: []models.NodeEdge{{Name: "output", Edge: "shared-edge"}},
+			},
+			{
+				ID:      "node2",
+				DefName: "consumer",
+				Inputs:  []models.NodeEdge{{Name: "input", Edge: "shared-edge"}},
+			},
+		},
+	}
+
+	nodeDefs := []models.NodeDef{
+		{
+			ID:        1,
+			Publisher: "test",
+			Name:      "producer",
+			Image:     "test:latest",
+			Outputs:   []models.NodeEdgeDef{{Name: "output", Type: []models.MimeType{"text/plain"}}},
+		},
+		{
+			ID:        2,
+			Publisher: "test",
+			Name:      "consumer",
+			Image:     "test:latest",
+			Inputs:    []models.NodeEdgeDef{{Name: "input", Type: []models.MimeType{"application/json"}}},
+		},
+	}
+
+	err := typeCheckFlow(flow, nodeDefs)
+	if err == nil {
+		t.Fatal("typeCheckFlow() expected error for type mismatch, got nil")
+	}
+}
+
+func TestTypeCheckFlow_WildcardTypeMatch(t *testing.T) {
+	// Create a flow where producer outputs text/plain and consumer accepts text/*
+	flow := models.Flow{
+		Name: "test-flow",
+		Nodes: []models.Node{
+			{
+				ID:      "node1",
+				DefName: "producer",
+				Outputs: []models.NodeEdge{{Name: "output", Edge: "shared-edge"}},
+			},
+			{
+				ID:      "node2",
+				DefName: "consumer",
+				Inputs:  []models.NodeEdge{{Name: "input", Edge: "shared-edge"}},
+			},
+		},
+	}
+
+	nodeDefs := []models.NodeDef{
+		{
+			ID:        1,
+			Publisher: "test",
+			Name:      "producer",
+			Image:     "test:latest",
+			Outputs:   []models.NodeEdgeDef{{Name: "output", Type: []models.MimeType{"text/plain"}}},
+		},
+		{
+			ID:        2,
+			Publisher: "test",
+			Name:      "consumer",
+			Image:     "test:latest",
+			Inputs:    []models.NodeEdgeDef{{Name: "input", Type: []models.MimeType{"text/*"}}},
+		},
+	}
+
+	err := typeCheckFlow(flow, nodeDefs)
+	if err != nil {
+		t.Fatalf("typeCheckFlow() error = %v, want nil for wildcard type match", err)
+	}
+}
+
+func TestTypeCheckFlow_MultipleCompatibleTypes(t *testing.T) {
+	// Create a flow where producer outputs multiple types, consumer accepts one of them
+	flow := models.Flow{
+		Name: "test-flow",
+		Nodes: []models.Node{
+			{
+				ID:      "node1",
+				DefName: "producer",
+				Outputs: []models.NodeEdge{{Name: "output", Edge: "shared-edge"}},
+			},
+			{
+				ID:      "node2",
+				DefName: "consumer",
+				Inputs:  []models.NodeEdge{{Name: "input", Edge: "shared-edge"}},
+			},
+		},
+	}
+
+	nodeDefs := []models.NodeDef{
+		{
+			ID:        1,
+			Publisher: "test",
+			Name:      "producer",
+			Image:     "test:latest",
+			Outputs:   []models.NodeEdgeDef{{Name: "output", Type: []models.MimeType{"text/plain", "application/json"}}},
+		},
+		{
+			ID:        2,
+			Publisher: "test",
+			Name:      "consumer",
+			Image:     "test:latest",
+			Inputs:    []models.NodeEdgeDef{{Name: "input", Type: []models.MimeType{"application/json", "application/xml"}}},
+		},
+	}
+
+	err := typeCheckFlow(flow, nodeDefs)
+	if err != nil {
+		t.Fatalf("typeCheckFlow() error = %v, want nil for overlapping types", err)
+	}
+}
+
+func TestTypeCheckFlow_EmptyFlow(t *testing.T) {
+	// Empty flow should pass type checking
+	flow := models.Flow{
+		Name:  "empty-flow",
+		Nodes: []models.Node{},
+	}
+
+	nodeDefs := []models.NodeDef{}
+
+	err := typeCheckFlow(flow, nodeDefs)
+	if err != nil {
+		t.Fatalf("typeCheckFlow() error = %v, want nil for empty flow", err)
+	}
+}
+
+func TestTypeCheckFlow_NodeWithNoConnections(t *testing.T) {
+	// Node with no inputs/outputs should pass type checking
+	flow := models.Flow{
+		Name: "test-flow",
+		Nodes: []models.Node{
+			{
+				ID:      "node1",
+				DefName: "standalone",
+				Inputs:  []models.NodeEdge{},
+				Outputs: []models.NodeEdge{},
+			},
+		},
+	}
+
+	nodeDefs := []models.NodeDef{
+		{
+			ID:        1,
+			Publisher: "test",
+			Name:      "standalone",
+			Image:     "test:latest",
+			Inputs:    []models.NodeEdgeDef{},
+			Outputs:   []models.NodeEdgeDef{},
+		},
+	}
+
+	err := typeCheckFlow(flow, nodeDefs)
+	if err != nil {
+		t.Fatalf("typeCheckFlow() error = %v, want nil for node with no connections", err)
 	}
 }
 
@@ -533,8 +739,6 @@ func TestTypeCheckFlow_ValidNodeDefinitions(t *testing.T) {
 // ============================================================================
 
 func TestIsFlowDAG_EmptyFlow(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	flow := models.Flow{
 		Name:  "empty-flow",
 		Nodes: []models.Node{},
@@ -547,8 +751,6 @@ func TestIsFlowDAG_EmptyFlow(t *testing.T) {
 }
 
 func TestIsFlowDAG_LinearFlow(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	// A -> B -> C
 	flow := models.Flow{
 		Name: "linear-flow",
@@ -579,8 +781,6 @@ func TestIsFlowDAG_LinearFlow(t *testing.T) {
 }
 
 func TestIsFlowDAG_DiamondPattern(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	// A -> B, A -> C, B -> D, C -> D (diamond pattern - valid DAG)
 	flow := models.Flow{
 		Name: "diamond-flow",
@@ -617,8 +817,6 @@ func TestIsFlowDAG_DiamondPattern(t *testing.T) {
 }
 
 func TestIsFlowDAG_SimpleCycle(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	// A -> B -> A (simple cycle)
 	flow := models.Flow{
 		Name: "cycle-flow",
@@ -645,8 +843,6 @@ func TestIsFlowDAG_SimpleCycle(t *testing.T) {
 }
 
 func TestIsFlowDAG_ComplexCycle(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	// A -> B -> C -> A (complex cycle)
 	flow := models.Flow{
 		Name: "complex-cycle-flow",
@@ -679,8 +875,6 @@ func TestIsFlowDAG_ComplexCycle(t *testing.T) {
 }
 
 func TestIsFlowDAG_SelfReference(t *testing.T) {
-	t.Skip("isFlowDAG is stubbed - always returns true")
-
 	// A -> A (self-reference)
 	flow := models.Flow{
 		Name: "self-ref-flow",
@@ -697,5 +891,95 @@ func TestIsFlowDAG_SelfReference(t *testing.T) {
 	result := isFlowDAG(flow)
 	if result {
 		t.Fatal("isFlowDAG() = true for self-reference, want false")
+	}
+}
+
+func TestIsFlowDAG_DisconnectedSubgraphs(t *testing.T) {
+	// Two separate DAGs: A -> B and C -> D
+	flow := models.Flow{
+		Name: "disconnected-flow",
+		Nodes: []models.Node{
+			{
+				ID:      "A",
+				DefName: "test-def",
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "A-B"}},
+			},
+			{
+				ID:      "B",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "A-B"}},
+			},
+			{
+				ID:      "C",
+				DefName: "test-def",
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "C-D"}},
+			},
+			{
+				ID:      "D",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "C-D"}},
+			},
+		},
+	}
+
+	result := isFlowDAG(flow)
+	if !result {
+		t.Fatal("isFlowDAG() = false for disconnected subgraphs, want true")
+	}
+}
+
+func TestIsFlowDAG_DisconnectedWithCycle(t *testing.T) {
+	// One valid DAG (A -> B) and one cycle (C -> D -> C)
+	flow := models.Flow{
+		Name: "disconnected-with-cycle",
+		Nodes: []models.Node{
+			{
+				ID:      "A",
+				DefName: "test-def",
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "A-B"}},
+			},
+			{
+				ID:      "B",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "A-B"}},
+			},
+			{
+				ID:      "C",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "D-C"}},
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "C-D"}},
+			},
+			{
+				ID:      "D",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{{Name: "in", Edge: "C-D"}},
+				Outputs: []models.NodeEdge{{Name: "out", Edge: "D-C"}},
+			},
+		},
+	}
+
+	result := isFlowDAG(flow)
+	if result {
+		t.Fatal("isFlowDAG() = true for disconnected graphs with cycle, want false")
+	}
+}
+
+func TestIsFlowDAG_SingleNodeNoEdges(t *testing.T) {
+	// Single isolated node with no connections
+	flow := models.Flow{
+		Name: "single-node",
+		Nodes: []models.Node{
+			{
+				ID:      "A",
+				DefName: "test-def",
+				Inputs:  []models.NodeEdge{},
+				Outputs: []models.NodeEdge{},
+			},
+		},
+	}
+
+	result := isFlowDAG(flow)
+	if !result {
+		t.Fatal("isFlowDAG() = false for single node with no edges, want true")
 	}
 }

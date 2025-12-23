@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"path"
 	"pupload/internal/logging"
+	mimetypes "pupload/internal/mimetype"
 	"pupload/internal/models"
 	"pupload/internal/worker/container"
 	"slices"
@@ -66,8 +67,8 @@ func (ns NodeService) GetOutputPaths(outputs map[string]string, base_path string
 	out := make(map[string]string, len(outputs))
 
 	for name := range outputs {
-		id := uuid.Must(uuid.NewV7())
-		path := path.Join(base_path, id.String())
+		id := uuid.Must(uuid.NewV7()).String()
+		path := path.Join(base_path, id)
 
 		out[name] = path
 	}
@@ -94,14 +95,18 @@ func (ns NodeService) GetInputStreams(inputs map[string]string, base_path string
 		mimeBytes := make([]byte, 512)
 		io.ReadFull(resp.Body, mimeBytes)
 
+		// TODO: runtime type safety
+
 		mime := http.DetectContentType(mimeBytes)
-		_ = mime
+		extension := mimetypes.GetExtensionFromMime(models.MimeType(mime))
 
 		reader := io.MultiReader(bytes.NewReader(mimeBytes), resp.Body)
 
 		// get Tar reader
 
 		id := uuid.Must(uuid.NewV7())
+		filename := id.String() + extension
+		fmt.Println(filename)
 
 		size := resp.ContentLength
 
@@ -115,7 +120,7 @@ func (ns NodeService) GetInputStreams(inputs map[string]string, base_path string
 			defer tw.Close()
 
 			hdr := &tar.Header{
-				Name: id.String(),
+				Name: filename,
 				Mode: 0600,
 				Size: size,
 			}
@@ -132,7 +137,7 @@ func (ns NodeService) GetInputStreams(inputs map[string]string, base_path string
 
 		}()
 
-		path := path.Join(base_path, id.String())
+		path := path.Join(base_path, filename)
 
 		out[name] = InputStreamOutput{reader: pr, path: path, base_path: base_path}
 	}

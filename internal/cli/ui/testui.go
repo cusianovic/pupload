@@ -351,6 +351,7 @@ func uploadFileCmd(index int, url, path string) tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.Open(path)
 		if err != nil {
+			fmt.Println(err)
 			return uploadResultMsg{Index: index, Err: err}
 		}
 		defer f.Close()

@@ -2,15 +2,13 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"pupload/internal/models"
+	"pupload/internal/syncplane"
 	"time"
-
-	"github.com/hibiken/asynq"
 )
 
-func (rt *RuntimeFlow) handleExecuteNode(nodeID string, asynqClient *asynq.Client) error {
+func (rt *RuntimeFlow) handleExecuteNode(nodeID string, s syncplane.SyncLayer) error {
 	node := rt.nodes[nodeID]
 	inputs := make(map[string]string)
 
@@ -41,7 +39,7 @@ func (rt *RuntimeFlow) handleExecuteNode(nodeID string, asynqClient *asynq.Clien
 			return fmt.Errorf("unable to acquire store described in artifact")
 		}
 
-		url, err := store.PutURL(context.TODO(), artifact.ObjectName, 10*time.Second)
+		url, err := store.PutURL(context.TODO(), artifact.ObjectName, 15*time.Minute)
 		if err != nil {
 			rt.log.Error("could not generate put url", "err", err)
 			return err
@@ -51,13 +49,13 @@ func (rt *RuntimeFlow) handleExecuteNode(nodeID string, asynqClient *asynq.Clien
 		WaitingURL := models.WaitingURL{
 			Artifact: *artifact,
 			PutURL:   url.String(),
-			TTL:      time.Now().Add(10 * time.Second),
+			TTL:      time.Now().Add(15 * time.Minute),
 		}
 
 		rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs, WaitingURL)
 	}
 
-	err := node.executeNode(asynqClient, rt.FlowRun.ID, inputs, outputs)
+	err := node.executeNode(s, rt.FlowRun.ID, inputs, outputs)
 	if err != nil {
 		return nil
 	}
@@ -107,8 +105,8 @@ func (rt *RuntimeFlow) HandleNodeFinished(nodeID string, logs []models.LogRecord
 	return nil
 }
 
-func (rn *RuntimeNode) executeNode(asynqClient *asynq.Client, runID string, input, output map[string]string) error {
-	payload := models.NodeExecutePayload{
+func (rn *RuntimeNode) executeNode(s syncplane.SyncLayer, runID string, input, output map[string]string) error {
+	payload := syncplane.NodeExecutePayload{
 		RunID:      runID,
 		Node:       *rn.Node,
 		NodeDef:    rn.NodeDef,
@@ -116,13 +114,7 @@ func (rn *RuntimeNode) executeNode(asynqClient *asynq.Client, runID string, inpu
 		OutputURLs: output,
 	}
 
-	task, err := NewNodeExecuteTask(payload)
-	if err != nil {
-		return err
-	}
-
-	_, err = asynqClient.Enqueue(task, asynq.Queue("worker"))
-	return err
+	return s.EnqueueExecuteNode(payload)
 }
 
 func (rt *RuntimeFlow) shouldNodeReady(nodeID string) {
@@ -141,14 +133,4 @@ func (rt *RuntimeFlow) shouldNodeReady(nodeID string) {
 	}
 
 	rt.FlowRun.NodeState[nodeID] = models.NodeState{Status: models.NODERUN_READY, Logs: rt.FlowRun.NodeState[nodeID].Logs}
-}
-
-func NewNodeExecuteTask(p models.NodeExecutePayload) (*asynq.Task, error) {
-	payload, err := json.Marshal(p)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return asynq.NewTask(models.TypeNodeExecute, payload), nil
 }

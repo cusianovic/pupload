@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewServer(config config.CONTROLLER_CONFIG, f *flows.FlowService) http.Handler {
+func NewServer(config config.ControllerConfig, f *flows.FlowService) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)

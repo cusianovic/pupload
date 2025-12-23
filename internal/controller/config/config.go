@@ -5,11 +5,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"pupload/internal/syncplane"
 
 	"github.com/pelletier/go-toml/v2"
 )
 
-type CONTROLLER_CONFIG struct {
+type ControllerConfig struct {
+	SyncLayer syncplane.SyncPlaneSettings
+
 	Storage struct {
 		DataPath string
 	}
@@ -34,7 +37,7 @@ func resolveConfigPath(flagVal string) string {
 	return "/etc/pupload/"
 }
 
-func LoadControllerConfig(flagVal string) CONTROLLER_CONFIG {
+func LoadControllerConfig(flagVal string) ControllerConfig {
 
 	configPath := resolveConfigPath(flagVal)
 
@@ -50,7 +53,7 @@ func LoadControllerConfig(flagVal string) CONTROLLER_CONFIG {
 		log.Fatalln("Unable to load config", err)
 	}
 
-	var controller_config CONTROLLER_CONFIG
+	var controller_config ControllerConfig
 	if err := toml.Unmarshal(controller_toml, &controller_config); err != nil {
 		log.Fatalln("Unable to load config", err)
 	}

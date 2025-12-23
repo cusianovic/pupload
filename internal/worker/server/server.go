@@ -2,7 +2,7 @@ package server
 
 import (
 	"log"
-	"pupload/internal/models"
+	"pupload/internal/syncplane"
 	"pupload/internal/worker/container"
 	"pupload/internal/worker/node"
 
@@ -30,7 +30,7 @@ func NewWorkerServer() {
 
 	mux := asynq.NewServeMux()
 	mux.Use(ns.FinishedMiddleware)
-	mux.HandleFunc(models.TypeNodeExecute, ns.HandleNodeExecuteTask)
+	mux.HandleFunc(syncplane.TypeNodeExecute, ns.HandleNodeExecuteTask)
 
 	if err := srv.Run(mux); err != nil {
 		log.Fatalf("Error starting worker: %s", err.Error())

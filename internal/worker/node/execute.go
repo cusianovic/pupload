@@ -9,7 +9,7 @@ import (
 	"io"
 	"os"
 	"pupload/internal/logging"
-	"pupload/internal/models"
+	"pupload/internal/syncplane"
 	"strings"
 
 	"github.com/hibiken/asynq"
@@ -22,7 +22,7 @@ func (n NodeService) HandleNodeExecuteTask(ctx context.Context, t *asynq.Task) e
 
 	l := logging.LoggerFromCtx(ctx)
 
-	var p models.NodeExecutePayload
+	var p syncplane.NodeExecutePayload
 
 	if err := json.Unmarshal(t.Payload(), &p); err != nil {
 		return err
@@ -84,6 +84,13 @@ func (n NodeService) HandleNodeExecuteTask(ctx context.Context, t *asynq.Task) e
 		},
 		HostConfig: &container.HostConfig{
 			AutoRemove: false,
+			Resources: container.Resources{
+				DeviceRequests: []container.DeviceRequest{{
+					Driver:       "nvidia",
+					Count:        1,
+					Capabilities: [][]string{{"compute", "video"}},
+				}},
+			},
 		},
 		Image: p.NodeDef.Image,
 		Name:  "test2",
