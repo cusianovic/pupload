@@ -9,10 +9,11 @@ import (
 
 type ContainerService struct {
 	DockerClient *client.Client
+	RT           *ContainerRuntime
+	IO           *ContainerIO
 }
 
 func CreateContainerService() ContainerService {
-
 	client, err := client.New(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("Can't create container service\n%s", err.Error())
@@ -20,7 +21,16 @@ func CreateContainerService() ContainerService {
 
 	return ContainerService{
 		DockerClient: client,
+		RT: &ContainerRuntime{
+			client:  client,
+			runtime: "runc",
+		},
+
+		IO: &ContainerIO{
+			client: client,
+		},
 	}
+
 }
 
 func (cs *ContainerService) ListImages() ([]string, error) {

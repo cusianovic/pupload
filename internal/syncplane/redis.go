@@ -83,7 +83,7 @@ func NewWorkerRedisSyncLayer(cfg SyncPlaneSettings) *RedisSync {
 	asynqServer := asynq.NewServerFromRedisClient(rdb, asynq.Config{
 		Concurrency: 10,
 		Queues: map[string]int{
-			"controller": 1,
+			"worker": 1,
 		},
 	})
 
@@ -311,13 +311,21 @@ func (r *RedisSync) Start() error {
 	}()
 
 	go func() {
-		r.StartScheduler(context.Background())
+		if r.scheduler != nil {
+			r.StartScheduler(context.Background())
+		}
 	}()
 
 	return nil
 }
 
 func (r *RedisSync) Close() error {
+
+	r.asynqServer.Shutdown()
+	if r.scheduler != nil {
+		r.scheduler.Shutdown()
+	}
+
 	return nil
 }
 

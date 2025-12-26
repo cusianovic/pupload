@@ -11,7 +11,7 @@ func CreateControllerSyncLayer(cfg SyncPlaneSettings) (SyncLayer, error) {
 	return nil, fmt.Errorf("")
 }
 
-func CreateWorkerSyncFunction(cfg SyncPlaneSettings) (SyncLayer, error) {
+func CreateWorkerSyncLayer(cfg SyncPlaneSettings) (SyncLayer, error) {
 
 	switch cfg.SelectedSyncPlane {
 	case "redis":

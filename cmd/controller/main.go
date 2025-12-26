@@ -14,7 +14,7 @@ import (
 
 func main() {
 
-	config := config.LoadControllerConfig("/home/seb/Projects/OpenUpload/test_config")
+	config := config.LoadControllerConfig("/home/seb/Projects/pupload/config")
 
 	logging.Init(logging.Config{
 		AppName: "controller",

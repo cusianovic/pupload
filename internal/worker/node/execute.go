@@ -1,87 +1,41 @@
 package node
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"pupload/internal/logging"
+	"pupload/internal/models"
 	"pupload/internal/syncplane"
 	"strings"
 
-	"github.com/hibiken/asynq"
-	"github.com/moby/moby/api/pkg/stdcopy"
+	cont "pupload/internal/worker/container"
+
 	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/client"
+	"golang.org/x/sync/errgroup"
 )
 
-func (n NodeService) HandleNodeExecuteTask(ctx context.Context, t *asynq.Task) error {
+func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExecutePayload) error {
 
 	l := logging.LoggerFromCtx(ctx)
 
-	var p syncplane.NodeExecutePayload
+	// handle worker capabiliites
 
-	if err := json.Unmarshal(t.Payload(), &p); err != nil {
-		return err
-	}
-
-	capable := n.CanWorkerRunContainer(p.NodeDef)
-	if !capable {
-
-	}
-
-	env, err := n.GetEnvArray(p.NodeDef, p.Node)
+	in, out, err := n.prepareIO(payload.InputURLs, payload.OutputURLs, payload.NodeDef, "/tmp")
 	if err != nil {
-		l.Error("error getting env values", "err", err)
 		return err
 	}
 
-	envMap := make(map[string]string)
-
-	err = n.AddEnvFlagMap(envMap, p.NodeDef, p.Node)
+	command, err := n.generateCommand(payload.Node, payload.NodeDef, in, out)
 	if err != nil {
-		l.Error("error getting env values", "err", err)
 		return err
 	}
 
-	ins := n.GetInputStreams(p.InputURLs, "/tmp")
-	for val, key := range ins {
-		v := fmt.Sprintf("%s=%s", val, key.path)
-		l.Info("adding input path to env", "name", val, "path", key.path)
-		env = append(env, v)
-		envMap[val] = key.path
+	containerID, err := n.CS.RT.CreateContainer(ctx, cont.ContainerConfig{
+		Image: payload.NodeDef.Image,
+		Name:  "test2",
+		Cmd:   command,
 
-	}
-
-	outs, err := n.GetOutputPaths(p.OutputURLs, "/tmp")
-	if err != nil {
-		l.Error("can't get output paths", "err", err)
-		return err
-	}
-
-	for val, key := range outs {
-		path := fmt.Sprintf("%s=%s", val, key)
-		l.Info("adding output to env", "name", val, "path", path)
-		env = append(env, path)
-		envMap[val] = key
-	}
-
-	expand := os.Expand(p.NodeDef.Command.Exec, func(s string) string {
-		return envMap[s]
-	})
-
-	command := strings.Fields(expand)
-
-	l.Info("command to run", "command", command)
-
-	res, err := n.ContainerService.DockerClient.ContainerCreate(ctx, client.ContainerCreateOptions{
-		Config: &container.Config{
-			Env: env,
-			Cmd: command,
-		},
 		HostConfig: &container.HostConfig{
 			AutoRemove: false,
 			Resources: container.Resources{
@@ -92,135 +46,98 @@ func (n NodeService) HandleNodeExecuteTask(ctx context.Context, t *asynq.Task) e
 				}},
 			},
 		},
-		Image: p.NodeDef.Image,
-		Name:  "test2",
 	})
 
-	container_id := res.ID
-
 	if err != nil {
-		l.Error("error creating container", "err", err)
 		return err
 	}
 
-	for key, val := range ins {
-		fmt.Println(key)
-		_, err := n.ContainerService.DockerClient.CopyToContainer(ctx, container_id, client.CopyToContainerOptions{
-			DestinationPath: val.base_path,
-			Content:         val.reader,
-		})
+	l.With("container_id", containerID)
+	l.Info("container created")
 
-		if err != nil {
-			l.Error("error copying file to container", "err", err)
-			return err
-		}
+	defer n.CS.RT.RemoveContainer(ctx, containerID)
 
-		val.reader.Close()
-	}
-
-	if _, err := n.ContainerService.DockerClient.ContainerStart(ctx, container_id, client.ContainerStartOptions{}); err != nil {
-		l.Error("error starting container", "err", err)
+	if err := n.downloadAllInputsToContainer(ctx, containerID, in); err != nil {
 		return err
 	}
 
-	defer n.ContainerService.DockerClient.ContainerRemove(ctx, container_id, client.ContainerRemoveOptions{
-		Force: true,
-	})
+	l.Info("files downloaded to container")
 
-	wait := n.ContainerService.DockerClient.ContainerWait(context.TODO(), container_id, client.ContainerWaitOptions{
-		Condition: container.WaitConditionNextExit,
-	})
-
-	select {
-	case res := <-wait.Result:
-		if res.Error != nil {
-			l.Error("container wait error", "err", res.Error.Message)
-			return errors.New(res.Error.Message)
-		}
-	case err := <-wait.Error:
-		if err != nil {
-			l.Error("container wait error", "err", err)
-			return err
-		}
+	if err := n.CS.RT.StartContainer(ctx, containerID); err != nil {
+		return err
 	}
 
-	// check error codes and tty
-	inspect, err := n.ContainerService.DockerClient.ContainerInspect(ctx, container_id, client.ContainerInspectOptions{})
+	l.Info("container started")
+
+	res, err := n.CS.RT.WaitContainer(ctx, containerID)
 	if err != nil {
-		l.Error("error inspecting container", "err", err)
+		return err
 	}
 
-	hasTTY := inspect.Container.Config.Tty
-	exitCode := inspect.Container.State.ExitCode
+	l.With(
+		"exit_code", res.ExitCode,
+		"exit_message", res.Error,
+	)
+	l.Info("container finished")
 
-	// CHECK LOGS
-
-	logs, err := n.ContainerService.DockerClient.ContainerLogs(ctx, container_id, client.ContainerLogsOptions{
-		ShowStdout: true,
-		ShowStderr: true,
-	})
-
+	logs, err := n.CS.RT.GetLogs(ctx, containerID)
 	if err != nil {
-		l.Error("failed to get container logs", "err", err)
+		return err
+	}
+	_ = logs
+
+	if res.ExitCode != 0 {
+		return fmt.Errorf("contained exited with non-0 exit code")
 	}
 
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-
-	if hasTTY {
-		l.Info("container has tty")
-		_, err := io.Copy(stdout, logs)
-		if err != nil {
-			l.Error("unable to copy container stdout")
-		}
-
-	} else {
-		l.Info("container has no tty")
-		_, copyErr := stdcopy.StdCopy(stdout, stderr, logs)
-		if copyErr != nil {
-			l.Error("unable to split stdout and stderr streams", "err", copyErr)
-		}
+	if err := n.uploadAllOutputsFromContainer(ctx, containerID, out); err != nil {
+		return err
 	}
 
-	stdoutString := stdout.String()
-	stderrString := stderr.String()
-	if stdoutString != "" {
-		l.Info("container stdout", "message", stdoutString)
-	}
-
-	if stderrString != "" {
-		l.Warn("container stderr", "message", stderrString)
-	}
-
-	if exitCode != 0 {
-		l.Error("container exited with error", "exit_code", inspect.Container.State.ExitCode)
-		return fmt.Errorf("container exited with error")
-	}
-
-	// Copy from container and upload
-	for key, val := range outs {
-		l.Info("copying from container", "output_name", key, "path", val)
-		res, err := n.ContainerService.DockerClient.CopyFromContainer(ctx, container_id, client.CopyFromContainerOptions{
-			SourcePath: val,
-		})
-
-		if err != nil {
-			l.Error("could not copy file from container", "err", err)
-			return err
-		}
-
-		tarStream := res.Content
-		url, ok := p.OutputURLs[key]
-		if !ok {
-			l.Error("invalid key name. i don't know how this could happen")
-			return fmt.Errorf("invalid key name")
-		}
-		uploadErr := n.UploadTarReaderToS3(ctx, url, tarStream)
-		if uploadErr != nil {
-			l.Error("failed to upload to s3", "output_name", key)
-			return err
-		}
-	}
+	l.Info("files uploaded from container")
 
 	return nil
+}
+
+func (n *NodeService) downloadAllInputsToContainer(ctx context.Context, containerID string, inputs []preparedIO) error {
+	inGroup, errCtx := errgroup.WithContext(ctx)
+	for _, i := range inputs {
+		i := i
+		inGroup.Go(func() error {
+			return n.CS.IO.DownloadIntoContainer(errCtx, containerID, i.url, i.base_path, i.filename)
+		})
+	}
+
+	return inGroup.Wait()
+}
+
+func (n *NodeService) uploadAllOutputsFromContainer(ctx context.Context, containerID string, outputs []preparedIO) error {
+	outGroup, errCtx := errgroup.WithContext(ctx)
+	for _, o := range outputs {
+		o := o
+		outGroup.Go(func() error {
+			return n.CS.IO.UploadFromContainer(errCtx, containerID, o.url, o.path, o.filename)
+		})
+	}
+
+	return outGroup.Wait()
+}
+
+func (n *NodeService) generateCommand(node models.Node, nodeDef models.NodeDef, in, out []preparedIO) ([]string, error) {
+	envMap := make(map[string]string)
+
+	if err := n.AddEnvFlagMap(envMap, nodeDef, node); err != nil {
+		return nil, err
+	}
+
+	// prep inputs
+	n.AddIOToEnvMap(envMap, in)
+	n.AddIOToEnvMap(envMap, out)
+
+	expand := os.Expand(nodeDef.Command.Exec, func(s string) string {
+		return envMap[s]
+	})
+
+	command := strings.Fields(expand)
+	return command, nil
 }

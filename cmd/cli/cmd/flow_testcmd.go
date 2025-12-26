@@ -27,7 +27,7 @@ to quickly create a Cobra application.`,
 			return err
 		}
 
-		run, err := project.TestFlow(root, "http://localhost:1234/", "testFlow")
+		run, err := project.TestFlow(root, "http://localhost:1234/", "test_h265")
 		if err != nil {
 			return err
 		}

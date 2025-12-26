@@ -15,7 +15,7 @@ type WorkerConfig struct {
 }
 
 type WorkerSettings struct {
-	ID int
+	ID string
 }
 
 type RuntimeSettings struct {
@@ -52,5 +52,51 @@ type SecuritySettings struct {
 }
 
 func DefaultConfig() *WorkerConfig {
-	return &WorkerConfig{}
+	return &WorkerConfig{
+		Worker: WorkerSettings{
+			ID: "0",
+		},
+
+		SyncPlane: syncplane.SyncPlaneSettings{
+			SelectedSyncPlane: "redis",
+			Redis: syncplane.RedisSettings{
+				Address:  "localhost:6379",
+				Password: "",
+				DB:       0,
+
+				PoolSize:   10,
+				MaxRetries: 3,
+			},
+		},
+
+		Resources: ResourceSettings{
+			MaxJobs:    3,
+			MaxCPU:     4.0,
+			MaxMemory:  "8GB",
+			MaxStorage: "50GB",
+			MaxTimeout: "2h",
+		},
+
+		Runtime: RuntimeSettings{
+			ContainerEngine:  "auto",
+			ContainerRuntime: "auto",
+			EnableGPUSupport: false,
+		},
+
+		Logging: LoggingSettings{
+			LogLevel: "warn",
+		},
+
+		Security: SecuritySettings{
+			AllowedRegistries: []string{
+				"docker.io",
+				"ghcr.io",
+				"gcr.io",
+				"public.ecr.aws",
+			},
+
+			ImageAllowlist: []string{},
+			ImageBlocklist: []string{},
+		},
+	}
 }

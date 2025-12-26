@@ -2,42 +2,49 @@ package node
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"os"
 	"pupload/internal/logging"
 	"pupload/internal/models"
 	"pupload/internal/syncplane"
-
-	"github.com/hibiken/asynq"
 )
 
-func (ns *NodeService) FinishedMiddleware(h asynq.Handler) asynq.Handler {
-	return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
+func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane.NodeExecutePayload) error {
 
-		var p syncplane.NodeExecutePayload
+	logs := make([]models.LogRecord, 0, 64)
+	ch := &logging.CollectHandler{
+		Inner: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}),
+		Records: &logs,
+	}
 
-		if err := json.Unmarshal(t.Payload(), &p); err != nil {
-			return err
+	jobLog := slog.New(ch)
+	jobLog.With(
+		"run_id", payload.RunID,
+		"node_id", payload.Node.ID,
+		"nodedef_publisher", payload.NodeDef.Publisher,
+		"nodedef_name", payload.NodeDef.Name,
+		"container_image", payload.NodeDef.Image,
+	)
+
+	ctx = logging.CtxWithLogger(ctx, jobLog)
+
+	err := ns.NodeExecute(ctx, payload)
+	if err == nil {
+
+		if err := ns.SyncLayer.EnqueueNodeFinished(syncplane.NodeFinishedPayload{
+			RunID:  payload.RunID,
+			NodeID: payload.Node.ID,
+			Logs:   logs,
+		}); err != nil {
+
 		}
+	}
 
-		logs := make([]models.LogRecord, 0, 64)
-		ch := &logging.CollectHandler{
-			Inner:   slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{}),
-			Records: &logs,
-		}
+	if err != nil {
+		jobLog.Error(err.Error())
+	}
 
-		jobLog := slog.New(ch)
-
-		ctx = logging.CtxWithLogger(ctx, jobLog)
-
-		err := h.ProcessTask(ctx, t)
-		if err == nil {
-			task := NewNodeFinishedTask(p.RunID, p.Node.ID, logs)
-			ns.AsynqClient.Enqueue(task)
-
-		}
-
-		return err
-	})
+	return err
 }

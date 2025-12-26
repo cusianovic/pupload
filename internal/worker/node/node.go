@@ -1,32 +1,29 @@
 package node
 
 import (
-	"archive/tar"
-	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
-	"pupload/internal/logging"
+	"path/filepath"
 	mimetypes "pupload/internal/mimetype"
 	"pupload/internal/models"
+	"pupload/internal/syncplane"
 	"pupload/internal/worker/container"
 	"slices"
 
 	"github.com/google/uuid"
-	"github.com/hibiken/asynq"
 )
 
 type NodeService struct {
-	AsynqClient      *asynq.Client
-	ContainerService *container.ContainerService
+	SyncLayer syncplane.SyncLayer
+	CS        *container.ContainerService
 }
 
-func CreateNodeService(cs *container.ContainerService, asynqClient *asynq.Client) NodeService {
+func CreateNodeService(cs *container.ContainerService, s syncplane.SyncLayer) NodeService {
 	return NodeService{
-		AsynqClient:      asynqClient,
-		ContainerService: cs,
+		CS:        cs,
+		SyncLayer: s,
 	}
 }
 
@@ -45,7 +42,7 @@ func (ns NodeService) AddEnvFlagMap(m map[string]string, nodeDef models.NodeDef,
 	return nil
 }
 
-func (ns NodeService) GetEnvArray(nodeDef models.NodeDef, node models.Node) ([]string, error) {
+func (ns NodeService) GetFlagEnvArray(nodeDef models.NodeDef, node models.Node) ([]string, error) {
 
 	env := make([]string, 0)
 
@@ -62,6 +59,87 @@ func (ns NodeService) GetEnvArray(nodeDef models.NodeDef, node models.Node) ([]s
 	return env, nil
 }
 
+type preparedIO struct {
+	name      string
+	base_path string
+	path      string
+	filename  string
+	url       string
+}
+
+func (ns *NodeService) prepareIO(inputs, outputs map[string]string, nodeDef models.NodeDef, basePath string) ([]preparedIO, []preparedIO, error) {
+	in := make([]preparedIO, 0, len(inputs))
+	out := make([]preparedIO, 0, len(outputs))
+
+	for _, inputDef := range nodeDef.Inputs {
+		inputURL, ok := inputs[inputDef.Name]
+		if !ok {
+			switch inputDef.Required {
+			case true:
+				return nil, nil, fmt.Errorf("PrepareInputs: node missing required input %s", inputDef.Name)
+			case false:
+				continue
+			}
+		}
+
+		typeSet, err := mimetypes.CreateMimeSet(inputDef.Type)
+		if err != nil {
+			return nil, nil, fmt.Errorf("PrepareInputs: error creating mimeset: %w", err)
+		}
+
+		ext, err := ns.ValidateInput(inputURL, *typeSet)
+		if err != nil {
+			return nil, nil, fmt.Errorf("PrepareInputs: error validating inputs: %w", err)
+		}
+
+		path, filename := ns.GetPath(basePath, ext)
+
+		in = append(in, preparedIO{
+			name:      inputDef.Name,
+			url:       inputURL,
+			base_path: basePath,
+			path:      path,
+			filename:  filename,
+		})
+
+	}
+
+	for _, outputDef := range nodeDef.Outputs {
+		outputURL, ok := outputs[outputDef.Name]
+		if !ok {
+			return nil, nil, fmt.Errorf("no output URL for output %s", outputDef.Name)
+		}
+
+		extension := ns.getOutputExtension(outputDef.Type)
+		path, filename := ns.GetPath(basePath, extension)
+
+		out = append(out, preparedIO{
+			url:       outputURL,
+			name:      outputDef.Name,
+			base_path: basePath,
+			path:      path,
+			filename:  filename,
+		})
+	}
+
+	return in, out, nil
+}
+
+func (ns NodeService) AddIOToEnvMap(env map[string]string, prepped []preparedIO) {
+	for _, prep := range prepped {
+		env[prep.name] = prep.path
+	}
+}
+
+func (ns NodeService) getOutputExtension(types []models.MimeType) string {
+	if len(types) != 1 {
+		return ""
+	}
+
+	t := types[0]
+	return mimetypes.GetExtensionFromMime(t)
+}
+
 func (ns NodeService) GetOutputPaths(outputs map[string]string, base_path string) (map[string]string, error) {
 
 	out := make(map[string]string, len(outputs))
@@ -76,116 +154,33 @@ func (ns NodeService) GetOutputPaths(outputs map[string]string, base_path string
 	return out, nil
 }
 
-type InputStreamOutput struct {
-	reader    io.ReadCloser
-	path      string
-	base_path string
-}
+// Validates a given uploaded file against the qualified allowed mime types.
+// Returns the appoprriate file extension
+func (ns NodeService) ValidateInput(url string, mimeSet mimetypes.MimeSet) (ext string, err error) {
 
-func (ns NodeService) GetInputStreams(inputs map[string]string, base_path string) map[string]InputStreamOutput {
-	out := make(map[string]InputStreamOutput, len(inputs))
+	resp, err := http.Get(url)
 
-	for name, url := range inputs {
-		resp, err := http.Get(url)
-
-		if err != nil {
-			continue
-		}
-
-		mimeBytes := make([]byte, 512)
-		io.ReadFull(resp.Body, mimeBytes)
-
-		// TODO: runtime type safety
-
-		mime := http.DetectContentType(mimeBytes)
-		extension := mimetypes.GetExtensionFromMime(models.MimeType(mime))
-
-		reader := io.MultiReader(bytes.NewReader(mimeBytes), resp.Body)
-
-		// get Tar reader
-
-		id := uuid.Must(uuid.NewV7())
-		filename := id.String() + extension
-		fmt.Println(filename)
-
-		size := resp.ContentLength
-
-		pr, pw := io.Pipe()
-
-		go func() {
-
-			defer resp.Body.Close()
-			defer pw.Close()
-			tw := tar.NewWriter(pw)
-			defer tw.Close()
-
-			hdr := &tar.Header{
-				Name: filename,
-				Mode: 0600,
-				Size: size,
-			}
-
-			if err := tw.WriteHeader(hdr); err != nil {
-				pw.CloseWithError(err)
-				return
-			}
-
-			if _, err := io.Copy(tw, reader); err != nil {
-				pw.CloseWithError(err)
-				return
-			}
-
-		}()
-
-		path := path.Join(base_path, filename)
-
-		out[name] = InputStreamOutput{reader: pr, path: path, base_path: base_path}
-	}
-
-	return out
-}
-
-func (ns NodeService) UploadTarReaderToS3(ctx context.Context, presigned_upload string, tarStream io.Reader) error {
-	l := logging.LoggerFromCtx(ctx)
-
-	tr := tar.NewReader(tarStream)
-
-	var hdr *tar.Header
-
-	for {
-		h, err := tr.Next()
-		if err != nil {
-			return err
-		}
-
-		if h.Typeflag == tar.TypeReg {
-			hdr = h
-			break
-		}
-	}
-
-	req, err := http.NewRequest(http.MethodPut, presigned_upload, tr)
 	if err != nil {
-		return err
-	}
-
-	req.ContentLength = hdr.Size
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+		return "", fmt.Errorf("error getting content from %s", url)
 	}
 
 	defer resp.Body.Close()
+	mimeBytes := make([]byte, 512)
 
-	l.Info("upload status", "status_code", resp.StatusCode, "message", resp.Status)
+	io.ReadFull(resp.Body, mimeBytes)
+	mime := http.DetectContentType(mimeBytes)
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("unexpected status: %s", resp.Status)
+	if !mimeSet.Contains(models.MimeType(mime)) {
+		return "", fmt.Errorf("invalid content type uploaded")
 	}
 
-	return nil
+	ext = mimetypes.GetExtensionFromMime(models.MimeType(mime))
+	return ext, nil
+}
+
+func (ns NodeService) GetPath(base_path string, extension string) (path string, filename string) {
+	filename = uuid.Must(uuid.NewV7()).String() + extension
+	return filepath.Join(base_path, filename), filename
 }
 
 func (ns NodeService) GetFlags(nodeDef models.NodeDef, node models.Node) (map[string]string, error) {
@@ -211,7 +206,7 @@ func (ns NodeService) GetFlags(nodeDef models.NodeDef, node models.Node) (map[st
 
 func (ns NodeService) CanWorkerRunContainer(nodeDef models.NodeDef) bool {
 
-	imageList, err := ns.ContainerService.ListImages()
+	imageList, err := ns.CS.ListImages()
 	if err != nil {
 		return false
 	}
