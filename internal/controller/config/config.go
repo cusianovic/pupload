@@ -2,7 +2,6 @@ package config
 
 import (
 	_ "embed"
-	"fmt"
 	"os"
 	"pupload/internal/controller/flows/repo"
 	"pupload/internal/syncplane"
@@ -27,8 +26,6 @@ func DefaultConfig() *ControllerSettings {
 	if err != nil {
 		wd = ""
 	}
-
-	fmt.Println(wd)
 
 	return &ControllerSettings{
 		SyncPlane: syncplane.SyncPlaneSettings{

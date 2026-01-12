@@ -1,11 +1,11 @@
 package controllerserver
 
 import (
-	"log"
 	"net/http"
 	v1 "pupload/internal/controller/api/v1"
 	config "pupload/internal/controller/config"
 	flows "pupload/internal/controller/flows/service"
+	"pupload/internal/logging"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -13,11 +13,14 @@ import (
 )
 
 func NewServer(config config.ControllerSettings, f *flows.FlowService) http.Handler {
+
+	log := logging.ForService("server")
+
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	// r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Use(middleware.Timeout(60 * time.Second))
@@ -25,13 +28,11 @@ func NewServer(config config.ControllerSettings, f *flows.FlowService) http.Hand
 	r.Mount("/api/v1", v1.HandleAPIRoutes(f))
 
 	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		log.Printf("%s %s\n", method, route)
+		log.Info("Route", "method", method, "route", route)
 		return nil
 	}
 
-	if err := chi.Walk(r, walkFunc); err != nil {
-		log.Printf("Logging err: %s\n", err.Error())
-	}
+	chi.Walk(r, walkFunc)
 
 	return r
 }

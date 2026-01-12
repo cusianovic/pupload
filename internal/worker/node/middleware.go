@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"log/slog"
-	"os"
 	"pupload/internal/logging"
 	"pupload/internal/models"
 	"pupload/internal/syncplane"
@@ -18,9 +17,7 @@ func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane
 
 	logs := make([]models.LogRecord, 0, 64)
 	ch := &logging.CollectHandler{
-		Inner: slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		}),
+		Inner:   logging.Root().Handler(),
 		Records: &logs,
 	}
 

@@ -1,30 +1,34 @@
 package worker
 
 import (
+	"context"
+	"io"
+	"log"
 	"log/slog"
-	"os"
-	"os/signal"
 	"pupload/internal/logging"
 	"pupload/internal/syncplane"
 	"pupload/internal/telemetry"
 	"pupload/internal/worker/config"
 	"pupload/internal/worker/container"
 	"pupload/internal/worker/server"
-	"syscall"
 )
 
 func Run() error {
 	cfg := config.DefaultConfig()
-	return RunWithConfig(cfg)
+	ctx := context.Background()
+
+	return RunWithConfig(ctx, cfg)
 }
 
-func RunWithConfig(cfg *config.WorkerConfig) error {
+func RunWithConfig(ctx context.Context, cfg *config.WorkerConfig) error {
 
 	logging.Init(logging.Config{
 		AppName: "worker",
 		Level:   slog.LevelInfo,
-		Format:  "json",
+		Format:  "text",
 	})
+
+	log := logging.Root()
 
 	telemetry.Init(cfg.Telemetry, "pupload.worker")
 
@@ -36,11 +40,38 @@ func RunWithConfig(cfg *config.WorkerConfig) error {
 	cs := container.CreateContainerService()
 	server.NewWorkerServer(s, &cs)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-ctx.Done()
 
-	sig := <-quit
-	_ = sig
+	log.Info("Worker shutting down...")
+
+	return s.Close()
+
+}
+
+func RunWithConfigSilent(ctx context.Context, cfg *config.WorkerConfig) error {
+	log.SetOutput(io.Discard)
+	logging.Init(logging.Config{
+		AppName: "worker",
+		Level:   slog.LevelInfo,
+		Format:  "json",
+		Out:     io.Discard,
+	})
+
+	log := logging.Root()
+
+	telemetry.Init(cfg.Telemetry, "pupload.worker")
+
+	s, err := syncplane.CreateWorkerSyncLayer(cfg.SyncPlane, cfg.Resources)
+	if err != nil {
+		return err
+	}
+
+	cs := container.CreateContainerService()
+	server.NewWorkerServer(s, &cs)
+
+	<-ctx.Done()
+
+	log.Info("Worker shutting down...")
 
 	return s.Close()
 

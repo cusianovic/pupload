@@ -84,8 +84,6 @@ func CreateResourceManager(cfg ResourceSettings) (*ResourceManager, error) {
 			return nil, err
 		}
 
-		fmt.Printf("storage free: %d", storage.Free)
-
 		sto = StorageMB(storage.Free / (1024 * 1024))
 	} else {
 		tmp, err := parseStorageMB(cfg.MaxStorage)
@@ -215,7 +213,6 @@ func (rm *ResourceManager) GetValidTierMap() map[string]int {
 }
 
 func (rm *ResourceManager) GenerateContainerResource(tierName string) (container.Resources, error) {
-	fmt.Printf("tier name: %s\n", tierName)
 	r, ok := StandardTierMap[tierName]
 	if !ok {
 		return container.Resources{}, fmt.Errorf("invalid tier name %s", tierName)

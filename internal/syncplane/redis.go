@@ -46,6 +46,8 @@ func NewControllerRedisSyncLayer(cfg SyncPlaneSettings) *RedisSync {
 		Queues: map[string]int{
 			"controller": 1,
 		},
+
+		LogLevel: asynq.FatalLevel,
 	})
 
 	pool := goredis.NewPool(rdb)
@@ -64,6 +66,10 @@ func NewControllerRedisSyncLayer(cfg SyncPlaneSettings) *RedisSync {
 		RedisUniversalClient:       rdb,
 		PeriodicTaskConfigProvider: newSchedulerTaskProvider(redisSync, cfg.ControllerStepInterval),
 		SyncInterval:               10 * time.Second,
+
+		SchedulerOpts: &asynq.SchedulerOpts{
+			LogLevel: asynq.FatalLevel,
+		},
 	})
 
 	redisSync.scheduler = mgr
@@ -96,6 +102,8 @@ func NewWorkerRedisSyncLayer(cfg SyncPlaneSettings, rCfg resources.ResourceSetti
 	asynqServer := asynq.NewServerFromRedisClient(rdb, asynq.Config{
 		Concurrency: 10,
 		Queues:      queueMap,
+
+		LogLevel: asynq.FatalLevel,
 	})
 
 	pool := goredis.NewPool(rdb)
@@ -151,16 +159,13 @@ func (r *RedisSync) RegisterExecuteNodeHandler(handler ExecuteNodeHandler) error
 }
 
 func (r *RedisSync) tryReserve(s string) error {
-	fmt.Println(s)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.workerResourceManger.Reserve(s); err != nil {
 		return fmt.Errorf("ExecuteNodeHandler: Could not reserve resource %s: %w", s, err)
 	}
-	fmt.Println("resource reserved")
 
 	queueMap := r.workerResourceManger.GetValidTierMap()
-	fmt.Println(queueMap)
 
 	r.asynqServer.SetQueues(queueMap, false)
 

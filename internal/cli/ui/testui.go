@@ -127,14 +127,11 @@ func buildNodesFromFlowRun(fr models.FlowRun) []Node {
 }
 
 func (m model) Init() tea.Cmd {
-	// clear old screen and start polling if we have an ID
+	// start polling if we have an ID (alt screen handles clearing)
 	if m.flowRun.ID == "" {
-		return tea.ClearScreen
+		return nil
 	}
-	return tea.Batch(
-		tea.ClearScreen,
-		pollFlowRunCmd(m.flowRun.ID),
-	)
+	return pollFlowRunCmd(m.flowRun.ID)
 }
 
 // ----- Update -----
@@ -145,10 +142,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
-			return m, tea.Sequence(
-				tea.ClearScreen,
-				tea.Quit,
-			)
+			return m, tea.Quit
 		}
 
 	case uploadResultMsg:
@@ -351,7 +345,6 @@ func uploadFileCmd(index int, url, path string) tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.Open(path)
 		if err != nil {
-			fmt.Println(err)
 			return uploadResultMsg{Index: index, Err: err}
 		}
 		defer f.Close()
@@ -873,7 +866,12 @@ func (m model) View() string {
 // Entry point for testing
 
 func TestFlowUI(fr models.FlowRun) {
-	p := tea.NewProgram(initialModel(fr))
+	// Redirect stdin/stdout/stderr to prevent background logs from interfering
+	p := tea.NewProgram(
+		initialModel(fr),
+		tea.WithAltScreen(),
+		tea.WithInput(os.Stdin),
+	)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
