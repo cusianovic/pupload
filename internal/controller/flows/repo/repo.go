@@ -10,6 +10,7 @@ type ProjectRepo interface {
 	SaveProject(ctx context.Context, project models.Project) error
 	LoadProject(ctx context.Context, tenantID, projectName string) (models.Project, error)
 	DeleteProject(ctx context.Context, tenantID, projectName string) error
+	Close(ctx context.Context) error
 }
 
 type RuntimeRepo interface {
@@ -17,4 +18,5 @@ type RuntimeRepo interface {
 	LoadRuntime(runID string) (runtime.RuntimeFlow, error)
 	DeleteRuntime(runID string) error
 	ListRuntimeIDs() ([]string, error)
+	Close(ctx context.Context) error
 }

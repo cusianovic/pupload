@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"log/slog"
+	"pupload/internal/controller/config"
 	"pupload/internal/controller/flows/repo"
-	runtime_repo "pupload/internal/controller/flows/repo/runtime"
 	"pupload/internal/controller/flows/runtime"
 	"pupload/internal/syncplane"
 	"pupload/internal/telemetry"
@@ -13,7 +13,6 @@ import (
 	"pupload/internal/logging"
 	"pupload/internal/models"
 
-	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -26,13 +25,22 @@ type FlowService struct {
 	log *slog.Logger
 }
 
-func CreateFlowService(rdb *redis.Client, s syncplane.SyncLayer) *FlowService {
+func CreateFlowService(cfg *config.ControllerSettings, s syncplane.SyncLayer) (*FlowService, error) {
 	slog := logging.ForService("flow")
 
-	runtimeStore := runtime_repo.CreateRedisRuntimeRepo(rdb)
+	runtimeRepo, err := repo.CreateRuntimeRepo(cfg.RuntimeRepo)
+	if err != nil {
+		return nil, err
+	}
+
+	projectRepo, err := repo.CreateProjectRepo(cfg.ProjectRepo)
+	if err != nil {
+		return nil, err
+	}
 
 	f := FlowService{
-		runtimeRepo: runtimeStore,
+		projectRepo: projectRepo,
+		runtimeRepo: runtimeRepo,
 
 		syncLayer: s,
 
@@ -45,11 +53,12 @@ func CreateFlowService(rdb *redis.Client, s syncplane.SyncLayer) *FlowService {
 
 	s.Start()
 
-	return &f
+	return &f, nil
 }
 
-func (f *FlowService) Close() {
-
+func (f *FlowService) Close(ctx context.Context) {
+	f.projectRepo.Close(ctx)
+	f.runtimeRepo.Close(ctx)
 }
 
 func (f *FlowService) RunFlow(flow models.Flow, nodeDefs []models.NodeDef) (models.FlowRun, error) {

@@ -131,6 +131,56 @@ func GetNodeDefs(projectRoot string) ([]models.NodeDef, error) {
 	return nodeDefs, nil
 }
 
+func loadFlowsFromDir(path string) ([]models.Flow, error) {
+	flows := make([]models.Flow, 0)
+
+	yamls, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, y := range yamls {
+		var flow models.Flow
+		data, err := os.ReadFile(filepath.Join(path, y.Name()))
+		if err != nil {
+			continue
+		}
+
+		if err := yaml.Unmarshal(data, &flow); err != nil {
+			continue
+		}
+
+		flows = append(flows, flow)
+	}
+
+	return flows, nil
+}
+
+func loadDefsFromDir(path string) ([]models.NodeDef, error) {
+	nodeDefs := make([]models.NodeDef, 0)
+
+	yamls, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, y := range yamls {
+		var nodeDef models.NodeDef
+		data, err := os.ReadFile(filepath.Join(path, y.Name()))
+		if err != nil {
+			continue
+		}
+
+		if err := yaml.Unmarshal(data, &nodeDef); err != nil {
+			continue
+		}
+
+		nodeDefs = append(nodeDefs, nodeDef)
+	}
+
+	return nodeDefs, nil
+}
+
 func GetFlows(projectRoot string) ([]models.Flow, error) {
 	path := filepath.Join(projectRoot, "flows")
 	flows := make([]models.Flow, 0)

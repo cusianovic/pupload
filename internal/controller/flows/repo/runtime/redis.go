@@ -58,6 +58,10 @@ func (r *RedisRuntimeRepo) DeleteRuntime(runID string) error {
 	return err
 }
 
+func (r *RedisRuntimeRepo) Close(ctx context.Context) error {
+	return r.client.Close()
+}
+
 func (r *RedisRuntimeRepo) ListRuntimeIDs() ([]string, error) {
 
 	list := make([]string, 0)

@@ -79,6 +79,10 @@ func DefaultConfig() *WorkerConfig {
 			LogLevel: "warn",
 		},
 
+		Telemetry: telemetry.TelemetrySettings{
+			Enabled: false,
+		},
+
 		Security: SecuritySettings{
 			AllowedRegistries: []string{
 				"docker.io",
