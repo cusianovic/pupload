@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/pupload/pupload/internal/controller/config"
@@ -73,9 +74,11 @@ func (f *FlowService) RunFlow(flow models.Flow, nodeDefs []models.NodeDef) (mode
 		f.log.Info("node def tier", "node_def", nodeDefs[i].Name, "tier", nodeDefs[i].Tier)
 	}
 
-	if err := validation.ValidateFlow(flow, nodeDefs); err != nil {
-		f.log.Error("unable to validate flow", "err", err)
-		return models.FlowRun{}, err
+	res := validation.Validate(flow, nodeDefs)
+
+	if res.HasError() {
+		f.log.Warn("invalid flow", "errors", res.Errors, "warnings", res.Warnings)
+		return models.FlowRun{}, fmt.Errorf("invalid flow")
 	}
 
 	runtime, err := runtime.CreateRuntimeFlow(ctx, flow, nodeDefs)

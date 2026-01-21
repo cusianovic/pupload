@@ -12,8 +12,6 @@ type Node struct {
 type NodeEdge struct {
 	Name string
 	Edge string
-
-	Store *string // optional
 }
 
 type NodeFlag struct {
