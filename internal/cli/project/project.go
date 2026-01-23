@@ -39,18 +39,18 @@ func defaultProjectFile(projectName string) ProjectFile {
 	}
 }
 
-func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun, error) {
+func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun, *models.Flow, error) {
 
 	flow, err := GetFlow(projectRoot, flowName)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	flow.Normalize()
 
 	node_defs, err := GetNodeDefs(projectRoot)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	body := struct {
@@ -63,27 +63,27 @@ func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun,
 
 	j, err := json.Marshal(&body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	url, _ := url.JoinPath(controllerAddress, "api", "v1", "flow", "test")
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(j))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 
-		return nil, fmt.Errorf("TestFlow: Controller could not run flow: %s", string(body))
+		return nil, nil, fmt.Errorf("TestFlow: Controller could not run flow: %s", string(body))
 	}
 
 	flow_run := new(models.FlowRun)
 	err = json.NewDecoder(resp.Body).Decode(flow_run)
 
-	return flow_run, nil
+	return flow_run, flow, nil
 }
 
 func GetFlow(projectRoot, flowName string) (*models.Flow, error) {

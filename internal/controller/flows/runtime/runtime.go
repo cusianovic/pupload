@@ -147,7 +147,8 @@ func (rt *RuntimeFlow) initialDatawellInput() error {
 			err = rt.handleUploadDatawell(dw)
 
 		case "static":
-			// TODO: implement static resource grab
+			err = rt.handleStaticDatawell(dw)
+
 		case "webhook":
 			// TODO: implement webhook data source
 		}
@@ -189,6 +190,33 @@ func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 	}
 
 	rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs, waitingURL)
+	return nil
+}
+
+func (rt *RuntimeFlow) handleStaticDatawell(dw models.DataWell) error {
+
+	if dw.Key == nil {
+		return fmt.Errorf("handleStaticDatawell: datawell with static source must have key")
+	}
+
+	store, ok := rt.stores[dw.Store]
+	if !ok {
+		return fmt.Errorf("handleStaticDatawell: datawell has invalid store")
+	}
+
+	exists := store.Exists(*dw.Key)
+	if !exists {
+		return fmt.Errorf("handleStaticDatawell: datawell with static source references non-existant object")
+	}
+
+	artifact := models.Artifact{
+		StoreName:  dw.Store,
+		ObjectName: *dw.Key,
+		EdgeName:   dw.Edge,
+	}
+
+	rt.FlowRun.Artifacts[dw.Edge] = artifact
+
 	return nil
 }
 

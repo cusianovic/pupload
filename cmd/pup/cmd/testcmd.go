@@ -48,12 +48,12 @@ to quickly create a Cobra application.`,
 			remote = "http://localhost:1234/"
 		}
 
-		run, err := project.TestFlow(root, remote, flow_name)
+		run, flow, err := project.TestFlow(root, remote, flow_name)
 		if err != nil {
 			return err
 		}
 
-		ui.TestFlowUI(*run)
+		ui.TestFlowUI(*run, *flow)
 
 		return nil
 	},

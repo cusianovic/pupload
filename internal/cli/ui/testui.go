@@ -42,6 +42,7 @@ type view int
 const (
 	viewDashboard view = iota
 	viewFilePicker
+	viewLogViewer
 )
 
 // Messages
@@ -64,6 +65,7 @@ type model struct {
 	Inputs []Edge
 	Nodes  []Node
 
+	flow    models.Flow
 	flowRun models.FlowRun
 
 	focusSection  section
@@ -74,21 +76,44 @@ type model struct {
 	filePicker      filepicker.Model
 	fileTargetIndex int // which input we're uploading for
 
+	logViewerNode   string // which node's logs we're viewing
+	logScrollOffset int    // for scrolling through logs
+
 	width  int
 	height int
 }
 
 // ----- Initialisation -----
 
-func initialModel(flowrun models.FlowRun) model {
-	inputs := make([]Edge, 0, len(flowrun.WaitingURLs))
-	for _, input := range flowrun.WaitingURLs {
-		edge := Edge{
-			Name:     input.Artifact.EdgeName,
-			InputURL: input.PutURL,
-			Status:   "PENDING",
+func initialModel(flowrun models.FlowRun, flow models.Flow) model {
+	// Build a map of edge name -> WaitingURL for quick lookup
+	waitingURLs := make(map[string]models.WaitingURL)
+	for _, url := range flowrun.WaitingURLs {
+		waitingURLs[url.Artifact.EdgeName] = url
+	}
+
+	// Iterate over DataWells with a Source defined
+	inputs := make([]Edge, 0)
+	for _, dw := range flow.DataWells {
+		if dw.Source == nil {
+			continue
 		}
-		inputs = append(inputs, edge)
+
+		switch *dw.Source {
+		case "upload":
+			if url, ok := waitingURLs[dw.Edge]; ok {
+				inputs = append(inputs, Edge{
+					Name:     dw.Edge,
+					InputURL: url.PutURL,
+					Status:   "PENDING",
+				})
+			}
+		case "static":
+			inputs = append(inputs, Edge{
+				Name:   dw.Edge,
+				Status: "DONE",
+			})
+		}
 	}
 
 	nodes := buildNodesFromFlowRun(flowrun)
@@ -103,6 +128,7 @@ func initialModel(flowrun models.FlowRun) model {
 		Inputs: inputs,
 		Nodes:  nodes,
 
+		flow:          flow,
 		flowRun:       flowrun,
 		focusSection:  sectionInputs,
 		selectedInput: 0,
@@ -224,6 +250,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Log viewer
+	if m.activeView == viewLogViewer {
+		if key, ok := msg.(tea.KeyMsg); ok {
+			switch key.String() {
+			case "esc":
+				m.activeView = viewDashboard
+				return m, nil
+			case "j", "down":
+				m.logScrollOffset++
+				return m, nil
+			case "k", "up":
+				if m.logScrollOffset > 0 {
+					m.logScrollOffset--
+				}
+				return m, nil
+			}
+		}
+		return m, nil
+	}
+
 	// Dashboard view logic
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -309,6 +355,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if m.focusSection == sectionInputs && len(m.Inputs) > 0 {
+				// Only allow upload if status is PENDING
+				if m.Inputs[m.selectedInput].Status != "PENDING" {
+					return m, nil
+				}
+
 				m.activeView = viewFilePicker
 				m.fileTargetIndex = m.selectedInput
 
@@ -317,6 +368,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 
 				return m, m.filePicker.Init()
+			}
+
+			if m.focusSection == sectionNodes && len(m.Nodes) > 0 {
+				m.activeView = viewLogViewer
+				m.logViewerNode = m.Nodes[m.selectedNode].Name
+				m.logScrollOffset = 0
+				return m, nil
 			}
 		}
 	}
@@ -636,6 +694,36 @@ func (m model) View() string {
 		return b.String()
 	}
 
+	// Log viewer
+	if m.activeView == viewLogViewer {
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("Logs for %s\n\n", m.logViewerNode))
+
+		nodeState, ok := m.flowRun.NodeState[m.logViewerNode]
+		if ok {
+			logs := nodeState.Logs
+			maxLines := 20
+			if m.height > 6 {
+				maxLines = m.height - 6
+			}
+
+			for i := m.logScrollOffset; i < len(logs) && i < m.logScrollOffset+maxLines; i++ {
+				log := logs[i]
+				b.WriteString(fmt.Sprintf("[%s] %s: %s\n",
+					log.Time.Format("15:04:05"), log.Level, log.Msg))
+			}
+
+			if len(logs) == 0 {
+				b.WriteString("(no logs yet)\n")
+			}
+		} else {
+			b.WriteString("(node state not found)\n")
+		}
+
+		b.WriteString("\n[j/k] scroll  [esc] back  [q] quit\n")
+		return b.String()
+	}
+
 	// Dashboard view
 	var b strings.Builder
 	boxWidth := m.boxWidth()
@@ -866,10 +954,10 @@ func (m model) View() string {
 
 // Entry point for testing
 
-func TestFlowUI(fr models.FlowRun) {
+func TestFlowUI(fr models.FlowRun, flow models.Flow) {
 	// Redirect stdin/stdout/stderr to prevent background logs from interfering
 	p := tea.NewProgram(
-		initialModel(fr),
+		initialModel(fr, flow),
 		tea.WithAltScreen(),
 		tea.WithInput(os.Stdin),
 	)
