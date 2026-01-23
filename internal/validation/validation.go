@@ -52,7 +52,10 @@ func Validate(flow models.Flow, defs []models.NodeDef) *ValidationResult {
 	for _, well := range flow.DataWells {
 		wellInvalidSource(res, well)
 		wellStoreNotFound(res, well, flow.Stores)
+		wellInvalidKeyTemplate(res, well)
 		wellStaticMissingKey(res, well)
+		wellStaticKeyIsDynamic(res, well)
+		wellDynamicKeyIsStatic(res, well)
 	}
 
 	// Flow errors and warnings

@@ -91,15 +91,7 @@ func edgeTypeMismatch(r *ValidationResult, flow models.Flow, nodeDefs []models.N
 	}
 
 	for _, node := range flow.Nodes {
-
-		var def *models.NodeDef
-
-		for _, d := range nodeDefs {
-			if d.Name == node.Uses {
-				def = &d
-			}
-		}
-
+		def := getNodeDef(node, nodeDefs)
 		if def == nil {
 			continue
 		}

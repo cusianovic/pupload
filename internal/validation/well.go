@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"os"
 	"slices"
 
 	"github.com/pupload/pupload/internal/models"
@@ -82,6 +83,76 @@ func wellStoreNotFound(r *ValidationResult, well models.DataWell, stores []model
 		})
 	}
 
+}
+
+var allowedKeyVars = map[string]struct{}{
+	"RUN_ID": {}, "FLOW_NAME": {}, "EDGE": {},
+	"TIMESTAMP": {}, "DATE": {}, "YEAR": {}, "MONTH": {}, "DAY": {},
+	"UUID": {},
+}
+
+func wellInvalidKeyTemplate(r *ValidationResult, well models.DataWell) {
+	if well.Key == nil {
+		return
+	}
+
+	os.Expand(*well.Key, func(s string) string {
+		if _, ok := allowedKeyVars[s]; !ok {
+			r.AddError(ValidationEntry{
+				ValidationError,
+				ErrDatawellInvalidKeyTemplate,
+				"DatawellInvalidKeyTemplate",
+				fmt.Sprintf("Unknown variable ${%s} in key template for edge %s", s, well.Edge),
+			})
+		}
+		return ""
+	})
+}
+
+func wellDynamicKeyIsStatic(r *ValidationResult, well models.DataWell) {
+	if well.Key == nil || well.Source == nil {
+		return
+	}
+
+	// Only check dynamic sources
+	if *well.Source == "static" {
+		return
+	}
+
+	// Check if key contains any variables
+	hasVariable := false
+	os.Expand(*well.Key, func(s string) string {
+		if _, ok := allowedKeyVars[s]; ok {
+			hasVariable = true
+		}
+
+		return ""
+	})
+
+	if !hasVariable {
+		r.AddError(ValidationEntry{
+			ValidationError,
+			ErrDatawellDynamicHasStaticKey,
+			"DatawellDynamicHasStaticKey",
+			fmt.Sprintf("Datawell with source %q on edge %s has static key %q - all runs will overwrite the same object", *well.Source, well.Edge, *well.Key),
+		})
+	}
+}
+
+func wellStaticKeyIsDynamic(r *ValidationResult, well models.DataWell) {
+	if well.Key == nil || well.Source == nil || *well.Source != "static" {
+		return
+	}
+
+	os.Expand(*well.Key, func(s string) string {
+		r.AddError(ValidationEntry{
+			ValidationError,
+			ErrDatawellStaticHasDynamicKey,
+			"DatawellStaticHasDynamicKey",
+			fmt.Sprintf("Datawell with source \"static\" on edge %s uses key variable %s", well.Edge, s),
+		})
+		return ""
+	})
 }
 
 func wellStaticMissingKey(r *ValidationResult, well models.DataWell) {

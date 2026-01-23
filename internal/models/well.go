@@ -6,7 +6,7 @@ type DataWell struct {
 	Store string // Store name
 
 	Source   *string           // Where we're sourcing data from on input: upload, webhook, static, etc.
-	Key      *string           // defaults to artifact id. ${RUN_ID}, ${ARTIFACT_ID}, ${NODE_ID}
+	Key      *string           // defaults to artifact id. ${RUN_ID}, ${ARTIFACT_ID}, ${EDGE_ID}
 	Lifetime *DataWellLifetime // how long the data on that edge should live for
 }
 

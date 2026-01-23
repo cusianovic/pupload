@@ -4,7 +4,6 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
 	"io"
 	"log"
 
@@ -53,7 +52,6 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
-		fmt.Printf("shit failed")
 
 		ui.TestFlowUI(*run)
 

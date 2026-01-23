@@ -31,12 +31,14 @@ const (
 
 // DataWells Codes (WELL_###)
 const (
-	ErrDatawellInvalidSource      = "WELL_001"
-	ErrDatawellEdgeNotFound       = "WELL_002"
-	ErrDatawellDuplicateEdge      = "WELL_003"
-	ErrDatawellStoreNotFound      = "WELL_004"
-	ErrDatawellInvalidKeyTemplate = "WELL_005"
-	ErrDatawellStaticMissingKey   = "WELL_006"
+	ErrDatawellInvalidSource       = "WELL_001"
+	ErrDatawellEdgeNotFound        = "WELL_002"
+	ErrDatawellDuplicateEdge       = "WELL_003"
+	ErrDatawellStoreNotFound       = "WELL_004"
+	ErrDatawellInvalidKeyTemplate  = "WELL_005"
+	ErrDatawellStaticMissingKey    = "WELL_006"
+	ErrDatawellStaticHasDynamicKey = "WELL_007"
+	ErrDatawellDynamicHasStaticKey = "WELL_008"
 )
 
 // Store Codes (STORE_###)

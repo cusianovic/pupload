@@ -194,7 +194,13 @@ func TestValidation_CycleFlow(t *testing.T) {
 
 	res := Validate(flow, defs)
 	if res.HasError() {
-		t.Errorf("expected flow to have no errors: %v", *res)
+		if len(res.Errors) != 1 {
+			t.Errorf("expected flow to have only one errors: %v", *res)
+		}
+
+		if res.Errors[0].Code != ErrFlowCycle {
+			t.Errorf("expected error to be ErrFlowCycle: %v", *res)
+		}
 	}
 
 }

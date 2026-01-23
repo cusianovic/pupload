@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/pupload/pupload/internal/logging"
@@ -196,8 +197,21 @@ func (rt *RuntimeFlow) processDatawellKey(dw models.DataWell) string {
 		return fmt.Sprintf("%s_%s", dw.Edge, rt.FlowRun.ID)
 	}
 
-	// TODO:
-	return "TODOTESTPLEASEFIX"
+	runTime := time.Now()
+
+	keyVars := map[string]string{
+		"RUN_ID": rt.FlowRun.ID, "FLOW_NAME": rt.Flow.Name, "EDGE": dw.Edge,
+		"TIMESTAMP": runTime.Format(time.RFC3339),
+		"DATE":      runTime.Format("2006-01-02"),
+		"YEAR":      runTime.Format("2006"),
+		"MONTH":     runTime.Format("01"),
+		"DAY":       runTime.Format("02"),
+		"UUID":      uuid.NewString(),
+	}
+
+	return os.Expand(*dw.Key, func(s string) string {
+		return keyVars[s]
+	})
 }
 
 // Returns nil if flow is already running.
