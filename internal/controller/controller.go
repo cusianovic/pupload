@@ -10,6 +10,7 @@ import (
 
 	"github.com/pupload/pupload/internal/controller/config"
 	flow "github.com/pupload/pupload/internal/controller/flows/service"
+	"github.com/pupload/pupload/internal/controller/projects"
 	controllerserver "github.com/pupload/pupload/internal/controller/server"
 	"github.com/pupload/pupload/internal/logging"
 	"github.com/pupload/pupload/internal/syncplane"
@@ -47,9 +48,16 @@ func RunWithConfig(ctx context.Context, cfg *config.ControllerSettings) error {
 	}
 	defer f.Close(ctx)
 
+	p, err := projects.CreateProjectService(cfg.ProjectRepo)
+	if err != nil {
+		return err
+	}
+
+	defer p.Close()
+
 	// Handlers
 
-	handler := controllerserver.NewServer(*cfg, f)
+	handler := controllerserver.NewServer(*cfg, f, p)
 	srv := &http.Server{
 		Addr:    ":1234",
 		Handler: handler,
@@ -102,9 +110,15 @@ func RunWithConfigSilent(ctx context.Context, cfg *config.ControllerSettings) er
 	}
 	defer f.Close(ctx)
 
+	p, err := projects.CreateProjectService(cfg.ProjectRepo)
+	if err != nil {
+		return err
+	}
+	defer p.Close()
+
 	// Handlers
 
-	handler := controllerserver.NewServer(*cfg, f)
+	handler := controllerserver.NewServer(*cfg, f, p)
 	srv := &http.Server{
 		Addr:    ":1234",
 		Handler: handler,

@@ -11,6 +11,7 @@ import (
 	"github.com/pupload/pupload/internal/controller"
 	controllerconfig "github.com/pupload/pupload/internal/controller/config"
 	"github.com/pupload/pupload/internal/controller/flows/repo"
+	"github.com/pupload/pupload/internal/controller/projects"
 	"github.com/pupload/pupload/internal/syncplane"
 	"github.com/pupload/pupload/internal/worker"
 	workerconfig "github.com/pupload/pupload/internal/worker/config"
@@ -43,13 +44,12 @@ func RunDev(projectRoot string) error {
 
 	controller_cfg := controllerconfig.DefaultConfig()
 	controller_cfg.SyncPlane = syncplane
-	controller_cfg.ProjectRepo = repo.ProjectRepoSettings{
-		Type: repo.SingleProjectFS,
-
-		SingleProjectFS: repo.SingleProjectFSSettings{
-			WorkingDir: projectRoot,
-		},
+	controller_cfg.ProjectRepo = projects.RedisProjectRepoConfig{
+		Address:  s.Addr(),
+		Password: "",
+		DB:       0,
 	}
+
 	controller_cfg.RuntimeRepo = repo.RuntimeRepoSettings{
 		Type: repo.RedisRuntimeRepo,
 
@@ -102,12 +102,10 @@ func RunDevSilent(projectRoot string) error {
 
 	controller_cfg := controllerconfig.DefaultConfig()
 	controller_cfg.SyncPlane = syncplane
-	controller_cfg.ProjectRepo = repo.ProjectRepoSettings{
-		Type: repo.SingleProjectFS,
-
-		SingleProjectFS: repo.SingleProjectFSSettings{
-			WorkingDir: projectRoot,
-		},
+	controller_cfg.ProjectRepo = projects.RedisProjectRepoConfig{
+		Address:  s.Addr(),
+		Password: "",
+		DB:       0,
 	}
 
 	controller_cfg.RuntimeRepo = repo.RuntimeRepoSettings{

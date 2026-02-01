@@ -7,13 +7,14 @@ import (
 	v1 "github.com/pupload/pupload/internal/controller/api/v1"
 	config "github.com/pupload/pupload/internal/controller/config"
 	flows "github.com/pupload/pupload/internal/controller/flows/service"
+	"github.com/pupload/pupload/internal/controller/projects"
 	"github.com/pupload/pupload/internal/logging"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewServer(config config.ControllerSettings, f *flows.FlowService) http.Handler {
+func NewServer(config config.ControllerSettings, f *flows.FlowService, p *projects.ProjectService) http.Handler {
 
 	log := logging.ForService("server")
 
@@ -26,7 +27,7 @@ func NewServer(config config.ControllerSettings, f *flows.FlowService) http.Hand
 
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Mount("/api/v1", v1.HandleAPIRoutes(f))
+	r.Mount("/api/v1", v1.HandleAPIRoutes(f, p))
 
 	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		log.Info("Route", "method", method, "route", route)

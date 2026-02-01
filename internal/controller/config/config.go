@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/pupload/pupload/internal/controller/flows/repo"
+	"github.com/pupload/pupload/internal/controller/projects"
 	"github.com/pupload/pupload/internal/syncplane"
 	"github.com/pupload/pupload/internal/telemetry"
 )
@@ -13,7 +14,7 @@ type ControllerSettings struct {
 	SyncPlane syncplane.SyncPlaneSettings
 	Telemetry telemetry.TelemetrySettings
 
-	ProjectRepo repo.ProjectRepoSettings
+	ProjectRepo projects.RedisProjectRepoConfig
 	RuntimeRepo repo.RuntimeRepoSettings
 
 	Storage struct {
@@ -22,11 +23,6 @@ type ControllerSettings struct {
 }
 
 func DefaultConfig() *ControllerSettings {
-
-	wd, err := os.Getwd()
-	if err != nil {
-		wd = ""
-	}
 
 	return &ControllerSettings{
 		SyncPlane: syncplane.SyncPlaneSettings{
@@ -43,12 +39,10 @@ func DefaultConfig() *ControllerSettings {
 			ControllerStepInterval: "@every 10s",
 		},
 
-		ProjectRepo: repo.ProjectRepoSettings{
-			Type: repo.SingleProjectFS,
-
-			SingleProjectFS: repo.SingleProjectFSSettings{
-				WorkingDir: wd,
-			},
+		ProjectRepo: projects.RedisProjectRepoConfig{
+			Address:  "localhost:6379",
+			Password: "",
+			DB:       0,
 		},
 
 		RuntimeRepo: repo.RuntimeRepoSettings{

@@ -3,6 +3,7 @@ package s3
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -89,11 +90,19 @@ func (s *S3Store) PutFromStream(ctx context.Context, objectName string, data io.
 */
 
 func (s *S3Store) PutURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
-	return s.client.PresignedPutObject(ctx, s.bucket, objectName, expires)
+	u, err = s.client.PresignedPutObject(ctx, s.bucket, objectName, expires)
+	if err != nil {
+		return nil, fmt.Errorf("s3 store at %q (bucket %q): %w", s.client.EndpointURL().Host, s.bucket, err)
+	}
+	return u, nil
 }
 
 func (s *S3Store) GetURL(ctx context.Context, objectName string, expires time.Duration) (u *url.URL, err error) {
-	return s.client.PresignedGetObject(ctx, s.bucket, objectName, expires, url.Values{})
+	u, err = s.client.PresignedGetObject(ctx, s.bucket, objectName, expires, url.Values{})
+	if err != nil {
+		return nil, fmt.Errorf("s3 store at %q (bucket %q): %w", s.client.EndpointURL().Host, s.bucket, err)
+	}
+	return u, nil
 }
 
 func (s *S3Store) DeleteObject(ctx context.Context, objectName string) error {

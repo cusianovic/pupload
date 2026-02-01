@@ -19,7 +19,6 @@ import (
 )
 
 type FlowService struct {
-	projectRepo repo.ProjectRepo
 	runtimeRepo repo.RuntimeRepo
 
 	syncLayer syncplane.SyncLayer
@@ -35,13 +34,7 @@ func CreateFlowService(cfg *config.ControllerSettings, s syncplane.SyncLayer) (*
 		return nil, err
 	}
 
-	projectRepo, err := repo.CreateProjectRepo(cfg.ProjectRepo)
-	if err != nil {
-		return nil, err
-	}
-
 	f := FlowService{
-		projectRepo: projectRepo,
 		runtimeRepo: runtimeRepo,
 
 		syncLayer: s,
@@ -59,7 +52,6 @@ func CreateFlowService(cfg *config.ControllerSettings, s syncplane.SyncLayer) (*
 }
 
 func (f *FlowService) Close(ctx context.Context) {
-	f.projectRepo.Close(ctx)
 	f.runtimeRepo.Close(ctx)
 }
 

@@ -29,6 +29,10 @@ to quickly create a Cobra application.`,
 			return err
 		}
 
+		if len(args) < 1 {
+			return fmt.Errorf("no project name specified")
+		}
+
 		proj_name := args[0]
 		if proj_name == "" {
 			return fmt.Errorf("no project name specified")

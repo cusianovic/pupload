@@ -4,8 +4,11 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"time"
 
 	"github.com/pupload/pupload/internal/cli/project"
 	"github.com/pupload/pupload/internal/cli/run"
@@ -13,6 +16,19 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+func waitForServer(address string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(address)
+		if err == nil {
+			resp.Body.Close()
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("server at %s did not become ready within %s", address, timeout)
+}
 
 // testCmd represents the test command
 var testCmd = &cobra.Command{
@@ -46,6 +62,10 @@ to quickly create a Cobra application.`,
 			}()
 
 			remote = "http://localhost:1234/"
+
+			if err := waitForServer(remote, 10*time.Second); err != nil {
+				return err
+			}
 		}
 
 		run, flow, err := project.TestFlow(root, remote, flow_name)

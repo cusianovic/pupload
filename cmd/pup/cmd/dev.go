@@ -29,8 +29,7 @@ to quickly create a Cobra application.`,
 			return fmt.Errorf("not inside a project")
 		}
 
-		run.RunDev(root)
-		return nil
+		return run.RunDev(root)
 	},
 }
 

@@ -47,8 +47,9 @@ func handleFlowRoutes(f *flows.FlowService) http.Handler {
 		}
 
 		render.JSON(w, r, flowRunStatus)
-
 	})
+
+	r.Post("/", func(w http.ResponseWriter, r *http.Request) {})
 
 	r.Post("/test", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {

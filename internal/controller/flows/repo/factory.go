@@ -3,41 +3,9 @@ package repo
 import (
 	"fmt"
 
-	"github.com/pupload/pupload/internal/controller/flows/repo/project"
 	runtime_repo "github.com/pupload/pupload/internal/controller/flows/repo/runtime"
-
 	"github.com/redis/go-redis/v9"
 )
-
-type ProjectRepoType string
-
-const (
-	NoneProject     ProjectRepoType = "none"
-	SingleProjectFS ProjectRepoType = "SingleProjectFS"
-)
-
-type ProjectRepoSettings struct {
-	Type ProjectRepoType
-
-	SingleProjectFS SingleProjectFSSettings
-}
-
-type SingleProjectFSSettings struct {
-	WorkingDir string
-}
-
-func CreateProjectRepo(cfg ProjectRepoSettings) (ProjectRepo, error) {
-	switch cfg.Type {
-	case SingleProjectFS:
-		// if !fs.ValidPath(cfg.SingleProjectFS.WorkingDir) {
-		// 	return nil, fmt.Errorf("specified working directory is invalid")
-		// }
-
-		return project.CreateSingleProjectFs(cfg.SingleProjectFS.WorkingDir), nil
-	}
-
-	return nil, fmt.Errorf("invalid project repo config")
-}
 
 type RuntimeRepoType string
 

@@ -10,19 +10,15 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/pupload/pupload/internal/models"
 
 	"sigs.k8s.io/yaml"
 )
 
-type ControllerDef struct {
-	Name string
-	URL  string
-}
-
 type ProjectFile struct {
-	ProjectName string `yaml:"ProjectName"`
-	Version     int    `yaml:"Version"`
+	ID          uuid.UUID `yaml:"id"`
+	ProjectName string    `yaml:"project_name"`
 
 	Controllers  []ControllerDef     `yaml:"Controllers"`
 	GlobalStores []models.StoreInput `yaml:"GlobalStores"`
@@ -30,11 +26,12 @@ type ProjectFile struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
-func defaultProjectFile(projectName string) ProjectFile {
+func newProjectFile(projectName string) ProjectFile {
 	return ProjectFile{
-		ProjectName:  projectName,
-		Version:      0,
-		Controllers:  []ControllerDef{},
+		ID:          uuid.Must(uuid.NewV7()),
+		ProjectName: projectName,
+		Controllers: []ControllerDef{},
+
 		GlobalStores: []models.StoreInput{},
 	}
 }
@@ -208,13 +205,19 @@ func GetFlows(projectRoot string) ([]models.Flow, error) {
 	return flows, nil
 }
 
-func GetProjectFile(path string) (*ProjectFile, error) {
-	rootPath, err := ProjectRoot(path)
+func GetProjectFile() (*ProjectFile, error) {
+	root, err := GetProjectRoot()
 	if err != nil {
 		return nil, err
 	}
 
-	projectPath := filepath.Join(rootPath, "pup.yaml")
+	return getProjectFile(root)
+
+}
+
+func getProjectFile(projectRoot string) (*ProjectFile, error) {
+
+	projectPath := filepath.Join(projectRoot, "pup.yaml")
 	file, err := os.ReadFile(projectPath)
 	if err != nil {
 		return nil, err
@@ -230,32 +233,36 @@ func GetProjectFile(path string) (*ProjectFile, error) {
 
 func InitProject(path string, projectName string) error {
 
-	file := filepath.Join(path, "pup.yaml")
-
-	project := defaultProjectFile(projectName)
-	yamlBytes, yErr := yaml.Marshal(&project)
-	if yErr != nil {
-		return yErr
-	}
-
-	err := os.WriteFile(file, yamlBytes, 0755)
-	if err != nil {
+	project := newProjectFile(projectName)
+	if err := writeProjectFile(path, project); err != nil {
 		return err
 	}
 
-	if err := os.Mkdir("flows", 0755); err != nil {
+	if err := os.Mkdir("flows", 0600); err != nil {
 		return err
 	}
 
-	if err := os.Mkdir("node_defs", 0755); err != nil {
+	if err := os.Mkdir("node_defs", 0600); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func writeProjectFile(projectRoot string, projectFile ProjectFile) error {
+
+	file := filepath.Join(projectRoot, "pup.yaml")
+
+	yamlBytes, err := yaml.Marshal(&projectFile)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(file, yamlBytes, 0600)
 
 }
 
-func IsProjectDirectory(path string) bool {
+func isProjectDirectory(path string) bool {
 	if _, err := ProjectRoot(path); err != nil {
 		return false
 	}
@@ -294,4 +301,36 @@ func ProjectRoot(path string) (string, error) {
 
 		path = filepath.Join(path, "..")
 	}
+}
+
+func GetProject() (models.Project, error) {
+	root, err := GetProjectRoot()
+	if err != nil {
+		return models.Project{}, err
+	}
+
+	return getProject(root)
+}
+
+func getProject(projectRoot string) (models.Project, error) {
+	flows, err := GetFlows(projectRoot)
+	if err != nil {
+		return models.Project{}, err
+	}
+
+	nodeDefs, err := GetNodeDefs(projectRoot)
+	if err != nil {
+		return models.Project{}, err
+	}
+
+	projectFile, err := getProjectFile(projectRoot)
+	if err != nil {
+		return models.Project{}, err
+	}
+
+	return models.Project{
+		ID:       projectFile.ID,
+		Flows:    flows,
+		NodeDefs: nodeDefs,
+	}, nil
 }

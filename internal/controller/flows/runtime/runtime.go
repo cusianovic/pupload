@@ -180,7 +180,7 @@ func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 
 	url, err := store.PutURL(context.TODO(), artifact.ObjectName, 1*time.Hour)
 	if err != nil {
-		return err
+		return fmt.Errorf("datawell for edge %q using store %q: %w", dw.Edge, dw.Store, err)
 	}
 
 	waitingURL := models.WaitingURL{
@@ -206,7 +206,7 @@ func (rt *RuntimeFlow) handleStaticDatawell(dw models.DataWell) error {
 
 	exists := store.Exists(*dw.Key)
 	if !exists {
-		return fmt.Errorf("handleStaticDatawell: datawell with static source references non-existant object")
+		return fmt.Errorf("datawell for edge %q using store %q: object %q not found or store is not reachable", dw.Edge, dw.Store, *dw.Key)
 	}
 
 	artifact := models.Artifact{
