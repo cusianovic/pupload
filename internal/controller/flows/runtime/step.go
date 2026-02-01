@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"time"
 
 	"github.com/pupload/pupload/internal/models"
 	"github.com/pupload/pupload/internal/syncplane"
@@ -16,6 +17,12 @@ func (rt *RuntimeFlow) Step(s syncplane.SyncLayer) {
 
 	for {
 		rt.log.Info("stepFlow state", "runID", rt.FlowRun.ID, "state", rt.FlowRun.Status)
+
+		if rt.IsTimedOut() {
+			rt.log.Warn("flow timed out", "runID", rt.FlowRun.ID, "timeout", *rt.Flow.Timeout)
+			rt.FlowRun.Status = models.FLOWRUN_ERROR
+			return
+		}
 
 		if rt.IsComplete() {
 			rt.FlowRun.Status = models.FLOWRUN_COMPLETE
@@ -58,6 +65,24 @@ func (rt *RuntimeFlow) Step(s syncplane.SyncLayer) {
 		}
 
 	}
+}
+
+func (rt *RuntimeFlow) IsTimedOut() bool {
+	if rt.Flow.Timeout == nil {
+		return false
+	}
+
+	timeout, err := time.ParseDuration(*rt.Flow.Timeout)
+	if err != nil {
+		rt.log.Warn("invalid timeout duration", "timeout", *rt.Flow.Timeout, "err", err)
+		return false
+	}
+
+	if rt.FlowRun.StartedAt.IsZero() {
+		return false
+	}
+
+	return time.Since(rt.FlowRun.StartedAt) > timeout
 }
 
 func (rt *RuntimeFlow) IsError() bool {

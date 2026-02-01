@@ -3,12 +3,12 @@ package models
 type Flow struct {
 	Name string
 
-	Stores []StoreInput
+	Timeout *string
 
+	Stores          []StoreInput
 	DefaultDataWell *DataWell
-
-	DataWells []DataWell
-	Nodes     []Node
+	DataWells       []DataWell
+	Nodes           []Node
 }
 
 func (f *Flow) Normalize() {

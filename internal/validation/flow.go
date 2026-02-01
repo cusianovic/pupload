@@ -1,6 +1,11 @@
 package validation
 
-import "github.com/pupload/pupload/internal/models"
+import (
+	"fmt"
+	"time"
+
+	"github.com/pupload/pupload/internal/models"
+)
 
 func flowDetectEmpty(r *ValidationResult, flow models.Flow) {
 	isEmpty := len(flow.Nodes) == 0
@@ -71,6 +76,32 @@ func flowDetectCycle(r *ValidationResult, flow models.Flow) {
 			ErrFlowCycle,
 			"FlowCycle",
 			"Flow has a cycle, which would cause infinite execution",
+		})
+	}
+}
+
+func flowValidateTimeout(r *ValidationResult, flow models.Flow) {
+	if flow.Timeout == nil {
+		return
+	}
+
+	duration, err := time.ParseDuration(*flow.Timeout)
+	if err != nil {
+		r.AddError(ValidationEntry{
+			ValidationError,
+			ErrFlowInvalidTimeout,
+			"FlowInvalidTimeout",
+			fmt.Sprintf("Flow timeout %q is not a valid duration: %s", *flow.Timeout, err.Error()),
+		})
+		return
+	}
+
+	if duration <= 0 {
+		r.AddError(ValidationEntry{
+			ValidationError,
+			ErrFlowInvalidTimeout,
+			"FlowInvalidTimeout",
+			"Flow timeout must be a positive duration",
 		})
 	}
 }

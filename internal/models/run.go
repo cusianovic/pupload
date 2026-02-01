@@ -52,4 +52,5 @@ type FlowRun struct {
 	Status      FlowRunStatus
 	Artifacts   map[string]Artifact // Maps given edge ID to Artifact
 	WaitingURLs []WaitingURL
+	StartedAt   time.Time
 }

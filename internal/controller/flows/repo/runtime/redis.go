@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"fmt"
+	"time"
 
 	"github.com/pupload/pupload/internal/controller/flows/runtime"
 
@@ -31,6 +32,22 @@ func (r *RedisRuntimeRepo) SaveRuntime(rt runtime.RuntimeFlow) error {
 	}
 
 	if err := r.client.Set(context.TODO(), key, buf.Bytes(), 0).Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *RedisRuntimeRepo) SaveRuntimeWithTTL(rt runtime.RuntimeFlow, ttl time.Duration) error {
+	key := fmt.Sprintf("flowrun:%s", rt.FlowRun.ID)
+
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	if err := enc.Encode(rt); err != nil {
+		return err
+	}
+
+	if err := r.client.Set(context.TODO(), key, buf.Bytes(), ttl).Err(); err != nil {
 		return err
 	}
 

@@ -249,6 +249,7 @@ func (rt *RuntimeFlow) Start(s syncplane.SyncLayer) error {
 
 	case models.FLOWRUN_STOPPED:
 		rt.FlowRun.Status = models.FLOWRUN_WAITING
+		rt.FlowRun.StartedAt = time.Now()
 
 	case models.FLOWRUN_COMPLETE:
 		return fmt.Errorf("runtime already complete")

@@ -26,7 +26,7 @@ func (f *FlowService) FlowStepHandler(ctx context.Context, payload syncplane.Flo
 	runtime.RebuildRuntimeFlow()
 	runtime.Step(f.syncLayer)
 	if runtime.IsComplete() || runtime.IsError() {
-		f.HandleFlowComplete(payload.RunID)
+		f.HandleFlowComplete(runtime)
 		return nil
 	}
 

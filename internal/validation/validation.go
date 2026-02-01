@@ -61,6 +61,7 @@ func Validate(flow models.Flow, defs []models.NodeDef) *ValidationResult {
 	// Flow errors and warnings
 	flowDetectEmpty(res, flow)
 	flowDetectCycle(res, flow)
+	flowValidateTimeout(res, flow)
 
 	return res
 }

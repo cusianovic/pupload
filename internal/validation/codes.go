@@ -2,8 +2,9 @@ package validation
 
 // Flow Codes (FLOW_###)
 const (
-	ErrFlowCycle = "FLOW_001"
-	ErrFlowEmpty = "FLOW_002"
+	ErrFlowCycle          = "FLOW_001"
+	ErrFlowEmpty          = "FLOW_002"
+	ErrFlowInvalidTimeout = "FLOW_003"
 )
 
 // Node Codes (NODE_###)

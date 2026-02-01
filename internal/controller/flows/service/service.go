@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/pupload/pupload/internal/controller/config"
 	"github.com/pupload/pupload/internal/controller/flows/repo"
@@ -96,8 +97,8 @@ func (f *FlowService) Status(runID string) (models.FlowRun, error) {
 	return runtime.FlowRun, nil
 }
 
-func (f *FlowService) HandleFlowComplete(runID string) error {
-	f.runtimeRepo.DeleteRuntime(runID)
-	f.syncLayer.RemoveRunFromScheduler(runID)
+func (f *FlowService) HandleFlowComplete(rt runtime.RuntimeFlow) error {
+	f.runtimeRepo.SaveRuntimeWithTTL(rt, 10*time.Minute)
+	f.syncLayer.RemoveRunFromScheduler(rt.FlowRun.ID)
 	return nil
 }
