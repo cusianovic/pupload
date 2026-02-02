@@ -9,7 +9,8 @@ import (
 )
 
 func (f *FlowService) FlowStepHandler(ctx context.Context, payload syncplane.FlowStepPayload) error {
-	m := f.syncLayer.NewMutex(payload.RunID, 10*time.Second)
+	key := fmt.Sprintf("runtimelock:%s", payload.RunID)
+	m := f.syncLayer.NewMutex(key, 10*time.Second)
 	err := m.Lock(ctx)
 
 	if err != nil {

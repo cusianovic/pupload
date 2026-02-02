@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	mimetypes "github.com/pupload/pupload/internal/mimetype"
@@ -145,17 +146,31 @@ func (ns *NodeService) validateInput(url string, mimeSet mimetypes.MimeSet) (ext
 	}
 
 	defer resp.Body.Close()
-	mimeBytes := make([]byte, 512)
 
-	io.ReadFull(resp.Body, mimeBytes)
-	mime := http.DetectContentType(mimeBytes)
+	// Try the Content-Type header first (S3 and most storage backends set this).
+	// Strip parameters (e.g. "video/mp4; codecs=avc1" -> "video/mp4").
+	mime := stripMimeParams(resp.Header.Get("Content-Type"))
+
+	// Fall back to byte sniffing if the header is missing or generic.
+	if mime == "" || mime == "application/octet-stream" || mime == "binary/octet-stream" {
+		mimeBytes := make([]byte, 512)
+		io.ReadFull(resp.Body, mimeBytes)
+		mime = stripMimeParams(http.DetectContentType(mimeBytes))
+	}
 
 	if !mimeSet.Contains(models.MimeType(mime)) {
-		return "", fmt.Errorf("invalid content type uploaded")
+		return "", fmt.Errorf("invalid content type uploaded: %s", mime)
 	}
 
 	ext = mimetypes.GetExtensionFromMime(models.MimeType(mime))
 	return ext, nil
+}
+
+func stripMimeParams(mime string) string {
+	if i := strings.Index(mime, ";"); i != -1 {
+		return strings.TrimSpace(mime[:i])
+	}
+	return mime
 }
 
 func (ns *NodeService) getPath(base_path string, extension string) (path string, filename string) {

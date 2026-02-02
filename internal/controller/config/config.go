@@ -36,7 +36,7 @@ func DefaultConfig() *ControllerSettings {
 				MaxRetries: 3,
 			},
 
-			ControllerStepInterval: "@every 10s",
+			ControllerStepInterval: "@every 1s",
 		},
 
 		ProjectRepo: projects.RedisProjectRepoConfig{

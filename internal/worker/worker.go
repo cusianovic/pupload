@@ -16,7 +16,11 @@ import (
 )
 
 func Run() error {
-	cfg := config.DefaultConfig()
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return err
+	}
+
 	ctx := context.Background()
 
 	return RunWithConfig(ctx, cfg)
