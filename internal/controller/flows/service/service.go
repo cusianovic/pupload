@@ -27,7 +27,7 @@ type FlowService struct {
 	log *slog.Logger
 }
 
-func CreateFlowService(cfg *config.ControllerSettings, s syncplane.SyncLayer) (*FlowService, error) {
+func CreateFlowService(cfg *config.ControllerConfig, s syncplane.SyncLayer) (*FlowService, error) {
 	slog := logging.ForService("flow")
 
 	runtimeRepo, err := repo.CreateRuntimeRepo(cfg.RuntimeRepo)

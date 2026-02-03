@@ -10,11 +10,9 @@ import (
 
 	"github.com/pupload/pupload/internal/controller"
 	controllerconfig "github.com/pupload/pupload/internal/controller/config"
-	"github.com/pupload/pupload/internal/controller/flows/repo"
-	"github.com/pupload/pupload/internal/controller/projects"
-	"github.com/pupload/pupload/internal/syncplane"
 	"github.com/pupload/pupload/internal/worker"
 	workerconfig "github.com/pupload/pupload/internal/worker/config"
+	"github.com/spf13/viper"
 
 	"github.com/alicebob/miniredis/v2"
 	"golang.org/x/sync/errgroup"
@@ -29,39 +27,19 @@ func RunDev(projectRoot string) error {
 		return err
 	}
 
-	syncplane := syncplane.SyncPlaneSettings{
-		SelectedSyncPlane: "redis",
-		Redis: syncplane.RedisSettings{
-			Address:  s.Addr(),
-			Password: "",
+	viper.Set("syncplane.redis.address", s.Addr())
+	viper.Set("projectrepo.address", s.Addr())
+	viper.Set("runtimerepo.redis.address", s.Addr())
 
-			PoolSize:   10,
-			MaxRetries: 3,
-		},
-
-		ControllerStepInterval: "@every 10s",
+	controller_cfg, err := controllerconfig.LoadConfig()
+	if err != nil {
+		return err
 	}
 
-	controller_cfg := controllerconfig.DefaultConfig()
-	controller_cfg.SyncPlane = syncplane
-	controller_cfg.ProjectRepo = projects.RedisProjectRepoConfig{
-		Address:  s.Addr(),
-		Password: "",
-		DB:       0,
+	worker_cfg, err := workerconfig.LoadConfig()
+	if err != nil {
+		return err
 	}
-
-	controller_cfg.RuntimeRepo = repo.RuntimeRepoSettings{
-		Type: repo.RedisRuntimeRepo,
-
-		Redis: repo.RedisSettings{
-			Address:  s.Addr(),
-			Password: "",
-			DB:       0,
-		},
-	}
-
-	worker_cfg := workerconfig.DefaultConfig()
-	worker_cfg.SyncPlane = syncplane
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -87,39 +65,19 @@ func RunDevSilent(projectRoot string) error {
 		return err
 	}
 
-	syncplane := syncplane.SyncPlaneSettings{
-		SelectedSyncPlane: "redis",
-		Redis: syncplane.RedisSettings{
-			Address:  s.Addr(),
-			Password: "",
+	viper.Set("syncplane.redis.address", s.Addr())
+	viper.Set("projectrepo.address", s.Addr())
+	viper.Set("runtimerepo.redis.address", s.Addr())
 
-			PoolSize:   10,
-			MaxRetries: 3,
-		},
-
-		ControllerStepInterval: "@every 10s",
+	controller_cfg, err := controllerconfig.LoadConfig()
+	if err != nil {
+		return err
 	}
 
-	controller_cfg := controllerconfig.DefaultConfig()
-	controller_cfg.SyncPlane = syncplane
-	controller_cfg.ProjectRepo = projects.RedisProjectRepoConfig{
-		Address:  s.Addr(),
-		Password: "",
-		DB:       0,
+	worker_cfg, err := workerconfig.LoadConfig()
+	if err != nil {
+		return err
 	}
-
-	controller_cfg.RuntimeRepo = repo.RuntimeRepoSettings{
-		Type: repo.RedisRuntimeRepo,
-
-		Redis: repo.RedisSettings{
-			Address:  s.Addr(),
-			Password: "",
-			DB:       0,
-		},
-	}
-
-	worker_cfg := workerconfig.DefaultConfig()
-	worker_cfg.SyncPlane = syncplane
 
 	g, gctx := errgroup.WithContext(ctx)
 

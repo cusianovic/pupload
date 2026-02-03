@@ -2,15 +2,16 @@ package config
 
 import (
 	_ "embed"
-	"os"
+	"errors"
 
 	"github.com/pupload/pupload/internal/controller/flows/repo"
 	"github.com/pupload/pupload/internal/controller/projects"
 	"github.com/pupload/pupload/internal/syncplane"
 	"github.com/pupload/pupload/internal/telemetry"
+	"github.com/spf13/viper"
 )
 
-type ControllerSettings struct {
+type ControllerConfig struct {
 	SyncPlane syncplane.SyncPlaneSettings
 	Telemetry telemetry.TelemetrySettings
 
@@ -22,78 +23,41 @@ type ControllerSettings struct {
 	}
 }
 
-func DefaultConfig() *ControllerSettings {
+func LoadConfig() (*ControllerConfig, error) {
+	viper.SetConfigName("controller")
+	viper.AddConfigPath("$PUPLOAD_CONFIG")
+	viper.AddConfigPath("/etc/pupload")
+	viper.AddConfigPath("$HOME/.config/pupload")
+	viper.AddConfigPath("$HOME/.pupload")
 
-	return &ControllerSettings{
-		SyncPlane: syncplane.SyncPlaneSettings{
-			SelectedSyncPlane: "redis",
-			Redis: syncplane.RedisSettings{
-				Address:  "localhost:6379",
-				Password: "",
-				DB:       0,
+	setDefaultConfig()
 
-				PoolSize:   10,
-				MaxRetries: 3,
-			},
-
-			ControllerStepInterval: "@every 1s",
-		},
-
-		ProjectRepo: projects.RedisProjectRepoConfig{
-			Address:  "localhost:6379",
-			Password: "",
-			DB:       0,
-		},
-
-		RuntimeRepo: repo.RuntimeRepoSettings{
-			Type: repo.RedisRuntimeRepo,
-			Redis: repo.RedisSettings{
-				Address:  "localhost:6379",
-				Password: "",
-				DB:       0,
-			},
-		},
-
-		Telemetry: telemetry.TelemetrySettings{
-			Enabled: false,
-		},
+	var fileLookupError viper.ConfigFileNotFoundError
+	if err := viper.ReadInConfig(); err != nil {
+		if !errors.As(err, &fileLookupError) {
+			return nil, err
+		}
 	}
+
+	var cfg ControllerConfig
+	err := viper.Unmarshal(&cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
 
 }
 
-func resolveConfigPath(flagVal string) string {
-	if flagVal != "" {
-		return flagVal
-	}
+func setDefaultConfig() {
+	viper.SetDefault("SyncPlane.SelectedSyncPlane", "redis")
+	viper.SetDefault("SyncPlane.Redis.Address", "localhost:6379")
+	viper.SetDefault("SyncPlane.Redis.PoolSize", 10)
+	viper.SetDefault("SyncPlane.Redis.MaxRetries", 3)
+	viper.SetDefault("SyncPlane.ControllerStepInterval", "@every 1s")
 
-	if env := os.Getenv("PUPLOAD_CONFIG"); env != "" {
-		return env
-	}
+	viper.SetDefault("ProjectRepo.Address", "localhost:6379")
 
-	return "/etc/pupload/"
+	viper.SetDefault("RuntimeRepo.Type", "redis")
+	viper.SetDefault("RuntimeRepo.Redis.Address", "localhost:6379")
 }
-
-// func LoadControllerConfig(flagVal string) ControllerConfig {
-
-// 	configPath := resolveConfigPath(flagVal)
-
-// 	controller_toml_path := filepath.Join(configPath, "controller.toml")
-
-// 	if _, err := os.Stat(controller_toml_path); err != nil {
-// 		os.MkdirAll(configPath, 0755)
-// 		// os.WriteFile(controller_toml_path, []byte(defaut_controller_toml), 0755)
-// 	}
-
-// 	controller_toml, err := os.ReadFile(controller_toml_path)
-// 	if err != nil {
-// 		log.Fatalln("Unable to load config", err)
-// 	}
-
-// 	var controller_config ControllerConfig
-// 	if err := toml.Unmarshal(controller_toml, &controller_config); err != nil {
-// 		log.Fatalln("Unable to load config", err)
-// 	}
-
-// 	return controller_config
-
-// }

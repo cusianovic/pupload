@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewServer(config config.ControllerSettings, f *flows.FlowService, p *projects.ProjectService) http.Handler {
+func NewServer(config config.ControllerConfig, f *flows.FlowService, p *projects.ProjectService) http.Handler {
 
 	log := logging.ForService("server")
 
