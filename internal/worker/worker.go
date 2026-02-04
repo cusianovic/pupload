@@ -30,7 +30,7 @@ func RunWithConfig(ctx context.Context, cfg *config.WorkerConfig) error {
 
 	logging.Init(logging.Config{
 		AppName: "worker",
-		Level:   slog.LevelInfo,
+		Level:   slog.LevelDebug,
 		Format:  "text",
 	})
 

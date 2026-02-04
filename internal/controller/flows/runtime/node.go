@@ -59,7 +59,7 @@ func (rt *RuntimeFlow) handleExecuteNode(ctx context.Context, nodeID string, s s
 
 	err := node.executeNode(ctx, s, rt.FlowRun.ID, inputs, outputs)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return nil

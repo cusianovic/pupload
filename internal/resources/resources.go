@@ -47,6 +47,8 @@ func CreateResourceManager(cfg ResourceSettings) (*ResourceManager, error) {
 	var mem MemoryMB
 	var sto StorageMB
 
+	log := logging.ForService("resource-manager")
+
 	if cfg.MaxCPU == "auto" {
 		c, err := ghw.CPU()
 		if err != nil {
@@ -99,6 +101,7 @@ func CreateResourceManager(cfg ResourceSettings) (*ResourceManager, error) {
 
 	gpus, err := detectGPUResources()
 	if err != nil {
+		log.Warn("error detecting GPU resources", "err", err)
 		gpus = []GPUInfo{}
 	}
 
@@ -109,7 +112,7 @@ func CreateResourceManager(cfg ResourceSettings) (*ResourceManager, error) {
 
 		gpus: gpus,
 
-		log: logging.ForService("resource-manager"),
+		log: log,
 	}, nil
 }
 

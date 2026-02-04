@@ -29,15 +29,18 @@ func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane
 		"nodedef_name", payload.NodeDef.Name,
 		"container_image", payload.NodeDef.Image,
 	)
+	jobLog.Debug("inside worker")
 
 	ctx = logging.CtxWithLogger(ctx, jobLog)
 
 	if err := ns.tryReserve(payload.NodeDef.Tier); err != nil {
-
+		jobLog.Error("error attempting to reserve resources", "err", err)
+		return err
 	}
 
 	res, genErr := ns.ResourceManger.GenerateContainerResource(payload.NodeDef.Tier)
 	if genErr != nil {
+		jobLog.Error("error attempting to generate ContainerResource", "err", genErr)
 		return genErr
 	}
 
@@ -48,6 +51,7 @@ func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane
 			NodeID: payload.Node.ID,
 			Logs:   logs,
 		}); err != nil {
+			jobLog.Error("error send node finished message", "err", err)
 
 		}
 	} else {
@@ -60,7 +64,7 @@ func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane
 			Error:       err.Error(),
 			TraceParent: payload.TraceParent,
 		}); enqueueErr != nil {
-
+			jobLog.Error("error send node error message", "err", err)
 		}
 
 	}
@@ -70,6 +74,7 @@ func (ns *NodeService) FinishedMiddleware(ctx context.Context, payload syncplane
 	}
 
 	if err := ns.tryRelease(payload.NodeDef.Tier); err != nil {
+		jobLog.Error("error attempting to release resources", "err", err)
 
 	}
 

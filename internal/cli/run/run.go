@@ -44,12 +44,10 @@ func RunDev(projectRoot string) error {
 	g, gctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		log.SetOutput(io.Discard)
 		return controller.RunWithConfig(gctx, controller_cfg)
 	})
 
 	g.Go(func() error {
-		log.SetOutput(io.Discard)
 		return worker.RunWithConfig(gctx, worker_cfg)
 	})
 

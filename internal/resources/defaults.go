@@ -93,7 +93,7 @@ var (
 	G_Micro = ResourceDefinition{
 		CPU:     4,
 		Memory:  "8gb",
-		Storage: "50gb",
+		Storage: "20gb",
 		GPU: &GPUDefinition{
 			Vendor: "any",
 			Count:  1,
