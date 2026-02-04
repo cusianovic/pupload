@@ -16,7 +16,7 @@ func (rt *RuntimeFlow) Step(s syncplane.SyncLayer) {
 	defer span.End()
 
 	for {
-		rt.log.Info("stepFlow state", "runID", rt.FlowRun.ID, "state", rt.FlowRun.Status)
+		rt.log.Debug("stepFlow state", "runID", rt.FlowRun.ID, "state", rt.FlowRun.Status)
 
 		if rt.IsTimedOut() {
 			rt.log.Warn("flow timed out", "runID", rt.FlowRun.ID, "timeout", *rt.Flow.Timeout)

@@ -86,14 +86,15 @@ to quickly create a Cobra application.`,
 			name := url.Artifact.EdgeName
 			path, ok := inputs[name]
 
-			if !ok && !tui && !force {
+			if (!ok && !tui) && !force {
 				// TODO: cancel run
 				return fmt.Errorf("missing input %s", name)
 			}
 
-			if err := uploadFile(path, url.PutURL); err != nil {
+			if err := uploadFile(path, url.PutURL); err != nil && !tui {
 				return fmt.Errorf("error uploading input %s: %w", name, err)
 			}
+
 		}
 
 		if tui {

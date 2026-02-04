@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gabriel-vasile/mimetype"
 	mimetypes "github.com/pupload/pupload/internal/mimetype"
 	"github.com/pupload/pupload/internal/models"
 	"github.com/pupload/pupload/internal/resources"
@@ -155,7 +156,8 @@ func (ns *NodeService) validateInput(url string, mimeSet mimetypes.MimeSet) (ext
 	if mime == "" || mime == "application/octet-stream" || mime == "binary/octet-stream" {
 		mimeBytes := make([]byte, 512)
 		io.ReadFull(resp.Body, mimeBytes)
-		mime = stripMimeParams(http.DetectContentType(mimeBytes))
+		mt := mimetype.Detect(mimeBytes)
+		mime = stripMimeParams(mt.String())
 	}
 
 	if !mimeSet.Contains(models.MimeType(mime)) {
