@@ -167,7 +167,7 @@ func (rt *RuntimeFlow) handleUploadDatawell(dw models.DataWell) error {
 
 	key := rt.processDatawellKey(dw)
 	store, ok := rt.stores[dw.Store]
-	fmt.Println(store)
+
 	if !ok {
 		return fmt.Errorf("store %s does not exist", dw.Store)
 	}

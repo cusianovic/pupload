@@ -30,7 +30,7 @@ func NewServer(config config.ControllerConfig, f *flows.FlowService, p *projects
 	r.Mount("/api/v1", v1.HandleAPIRoutes(f, p))
 
 	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		log.Info("Route", "method", method, "route", route)
+		log.Debug("Route", "method", method, "route", route)
 		return nil
 	}
 

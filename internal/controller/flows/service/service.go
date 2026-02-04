@@ -64,7 +64,7 @@ func (f *FlowService) RunFlow(flow models.Flow, nodeDefs []models.NodeDef) (mode
 	flow.Normalize()
 	for i := range nodeDefs {
 		nodeDefs[i].Normalize()
-		f.log.Info("node def tier", "node_def", nodeDefs[i].Name, "tier", nodeDefs[i].Tier)
+		f.log.Debug("node def tier", "node_def", nodeDefs[i].Name, "tier", nodeDefs[i].Tier)
 	}
 
 	res := validation.Validate(flow, nodeDefs)

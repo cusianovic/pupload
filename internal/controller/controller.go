@@ -73,6 +73,7 @@ func RunWithConfigSilent(ctx context.Context, cfg *config.ControllerConfig) erro
 		Handler: handler,
 	}
 
+	log.Info("Controller starting up...")
 	go func() {
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			log.Error("server forced to shutdown", "err", err)
@@ -140,6 +141,7 @@ func RunWithConfig(ctx context.Context, cfg *config.ControllerConfig) error {
 			log.Error("server forced to shutdown", "err", err)
 		}
 	}()
+	log.Info("Controller starting up...")
 
 	<-ctx.Done()
 
