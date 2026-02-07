@@ -238,11 +238,11 @@ func InitProject(path string, projectName string) error {
 		return err
 	}
 
-	if err := os.Mkdir("flows", 0600); err != nil {
+	if err := os.Mkdir("flows", 0700); err != nil {
 		return err
 	}
 
-	if err := os.Mkdir("node_defs", 0600); err != nil {
+	if err := os.Mkdir("node_defs", 0700); err != nil {
 		return err
 	}
 
