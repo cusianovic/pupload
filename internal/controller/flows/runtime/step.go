@@ -132,22 +132,24 @@ const (
 )
 
 func (rt *RuntimeFlow) updateWaiting() {
+	remaining := make([]models.WaitingURL, 0, len(rt.FlowRun.WaitingURLs))
 
-	for i, url := range rt.FlowRun.WaitingURLs {
+	for _, url := range rt.FlowRun.WaitingURLs {
 		result := rt.checkWaitingURL(url)
 		switch result {
-		case WaitNoChange:
 
 		case WaitReady:
-			rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs[:i], rt.FlowRun.WaitingURLs[i+1:]...)
+			// rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs[:i], rt.FlowRun.WaitingURLs[i+1:]...)
 			rt.FlowRun.Artifacts[url.Artifact.EdgeName] = url.Artifact
 
 		case WaitURLExpired:
 
-		case WaitFailed:
-			return
+		default:
+			remaining = append(remaining, url)
 		}
 	}
+
+	rt.FlowRun.WaitingURLs = remaining
 }
 
 func (rt *RuntimeFlow) checkWaitingURL(w models.WaitingURL) WaitingURLResult {
