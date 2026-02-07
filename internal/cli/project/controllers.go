@@ -74,6 +74,33 @@ func AddController(name, url string) error {
 	return writeProjectFile(root, *proj)
 }
 
+func RemoveController(name string) error {
+	root, err := GetProjectRoot()
+	if err != nil {
+		return err
+	}
+
+	proj, err := getProjectFile(root)
+	if err != nil {
+		return err
+	}
+
+	id := -1
+	for i, ctrl := range proj.Controllers {
+		if ctrl.Name == name {
+			id = i
+			break
+		}
+	}
+
+	if id == -1 {
+		return fmt.Errorf("controller name %s not found", name)
+	}
+
+	proj.Controllers = append(proj.Controllers[:id], proj.Controllers[id+1:]...)
+	return writeProjectFile(root, *proj)
+}
+
 func ListControllers() ([]ControllerDef, error) {
 	proj, err := GetProjectFile()
 	if err != nil {
