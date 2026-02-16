@@ -108,11 +108,13 @@ func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExe
 		return err
 	}
 
-	l.Debug("container logs", "logs", logs)
-
 	if res.ExitCode != 0 {
+		l.Warn("container logs", "logs", logs)
+
 		return fmt.Errorf("contained exited with non-0 exit code")
 	}
+
+	l.Info("container logs", "logs", logs)
 
 	if err := n.uploadAllOutputsFromContainer(ctx, containerID, out); err != nil {
 		return err

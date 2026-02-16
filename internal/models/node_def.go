@@ -6,7 +6,6 @@ const (
 )
 
 type NodeDef struct {
-	ID          int64
 	Publisher   string
 	Name        string
 	Image       string

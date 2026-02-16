@@ -30,7 +30,6 @@ func TestValidation_NormalFlow(t *testing.T) {
 	}
 
 	defs := []models.NodeDef{{
-		ID:          0,
 		Publisher:   "pupload",
 		Name:        "test",
 		Image:       "",
@@ -93,7 +92,6 @@ func TestValidation_MultiNodeFlow(t *testing.T) {
 	}
 
 	defs := []models.NodeDef{{
-		ID:          0,
 		Publisher:   "pupload",
 		Name:        "test",
 		Image:       "",
@@ -156,7 +154,6 @@ func TestValidation_CycleFlow(t *testing.T) {
 	}
 
 	defs := []models.NodeDef{{
-		ID:          0,
 		Publisher:   "pupload",
 		Name:        "test",
 		Image:       "",
