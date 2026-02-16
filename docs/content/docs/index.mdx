@@ -1,0 +1,90 @@
+---
+title: Introduction
+description: Introduction to Pupload
+---
+
+Pupload is a robust open-source tool for processing user uploads. Declaratively define your pipelines in YAML, and Pupload handles the rest.  
+
+```yaml
+# Encode a video into multiple resolutions for adaptive streaming
+Name: adaptive-video
+
+Stores:
+  - Name: videos
+    Type: s3
+
+DataWells:
+  - Edge: video-in
+    Store: videos
+    Source: upload
+
+  # Each output gets its own edge
+  - Edge: video-1080
+    Store: videos
+
+  - Edge: video-720
+    Store: videos
+
+  - Edge: thumbnail
+    Store: videos
+
+Nodes:
+  - ID: encode-1080p
+    Uses: pupload/encode
+    Inputs:
+      - Name: VideoIn
+        Edge: video-in
+    Outputs:
+      - Name: VideoOut
+        Edge: video-1080
+    Flags:
+      - Name: codec
+        Value: libx265
+      - Name: resolution
+        Value: 1080
+
+  # encode-720p, encode-480p follow the same pattern
+  # All run in parallel!
+
+  - ID: thumbnail
+    Uses: pupload/thumbnail
+    Inputs:
+      - Name: VideoIn
+        Edge: video-in
+    Outputs:
+      - Name: ThumbnailOut
+        Edge: thumbnail
+```
+
+```bash
+# Testing the pipeline on machine
+pup test adaptive-video --input video-in=./sample.mp4
+
+# Creating a development server to allow your software to trigger uploads
+pup dev
+```
+
+One upload, three outputs. Each node runs in parallel inside its own container, and results land in your S3 with presigned URLs.
+
+### Why Pupload?
+Most workflow engines treat files as an afterthought. Rolling your own file handling, presigned URL logic, and storage policies
+across a hodge-podge of services is extremely tedious, error-prone, and unobservable.
+
+Pupload is built around files from the start. Upload handling, artifact storage, and how your data flows between steps are treated as first-class concepts. 
+You don't build:
+- Upload infrastructure (presigned URLs, validation, storage routing)
+- Container orchestration (lifecycle, retries, resource scheduling)
+- Pipeline coordination (DAG execution, state management, artifact tracking)
+- Observability (log aggregation, timeouts, error handling)
+- Scaling (run cheap workers for thumbnails, expensive GPU workers for AI inference)
+- Local development (in-memory testing, mock s3 stores)
+
+
+### Quick Start
+```bash
+go install github.com/pupload/pupload/cmd/pup@latest
+
+git clone https://github.com/pupload/examples && cd examples
+pup test adaptive-video --input video-in=./sample.mp4
+```
+

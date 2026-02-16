@@ -1,0 +1,25 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+
+    "---Getting Started---",
+    "installation",
+    "first-flow",
+    "cli",
+    "api",
+
+    "---Core Concepts---",
+    "flows",
+    "node-nodedefs",
+    "datawell-edges",
+    "stores",
+
+    "---Self Hosting---",
+    "hosting-overview",
+    "controller",
+    "worker",
+    "production"
+
+  ]
+}
