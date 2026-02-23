@@ -36,19 +36,19 @@ func newProjectFile(projectName string) ProjectFile {
 	}
 }
 
-func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun, *models.Flow, error) {
+func TestFlow(flow *models.Flow, node_defs []models.NodeDef, controllerAddress string, mocks3 bool) (*models.FlowRun, *models.Flow, error) {
 
-	flow, err := GetFlow(projectRoot, flowName)
-	if err != nil {
-		return nil, nil, err
-	}
+	// flow, err := GetFlow(projectRoot, flowName)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
 
-	flow.Normalize()
+	// flow.Normalize()
 
-	node_defs, err := GetNodeDefs(projectRoot)
-	if err != nil {
-		return nil, nil, err
-	}
+	// node_defs, err := GetNodeDefs(projectRoot)
+	// if err != nil {
+	// 	return nil, nil, err
+	// }
 
 	body := struct {
 		Flow     models.Flow      `json:"Flow"`
@@ -61,6 +61,10 @@ func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun,
 	j, err := json.Marshal(&body)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if mocks3 {
+
 	}
 
 	url, _ := url.JoinPath(controllerAddress, "api", "v1", "flow", "test")
@@ -83,26 +87,6 @@ func TestFlow(projectRoot, controllerAddress, flowName string) (*models.FlowRun,
 	return flow_run, flow, nil
 }
 
-func GetFlow(projectRoot, flowName string) (*models.Flow, error) {
-
-	flows, _ := GetFlows(projectRoot)
-
-	var flow *models.Flow
-
-	for _, f := range flows {
-		if f.Name == flowName {
-			flow = &f
-			break
-		}
-	}
-
-	if flow == nil {
-		return nil, fmt.Errorf("flow %s not found", flowName)
-	}
-
-	return flow, nil
-}
-
 func GetNodeDefs(projectRoot string) ([]models.NodeDef, error) {
 	path := filepath.Join(projectRoot, "node_defs")
 	nodeDefs := make([]models.NodeDef, 0)
@@ -122,6 +106,8 @@ func GetNodeDefs(projectRoot string) ([]models.NodeDef, error) {
 		if err := yaml.Unmarshal(data, &nodeDef); err != nil {
 			continue
 		}
+
+		nodeDef.Normalize()
 
 		nodeDefs = append(nodeDefs, nodeDef)
 	}
@@ -333,4 +319,35 @@ func getProject(projectRoot string) (models.Project, error) {
 		Flows:    flows,
 		NodeDefs: nodeDefs,
 	}, nil
+}
+
+func GetFlow(flow_name string) (*models.Flow, error) {
+	root, err := GetProjectRoot()
+	if err != nil {
+		return nil, err
+	}
+
+	return getFlow(root, flow_name)
+}
+
+func getFlow(projectRoot, flowName string) (*models.Flow, error) {
+
+	flows, _ := GetFlows(projectRoot)
+
+	var flow *models.Flow
+
+	for _, f := range flows {
+		if f.Name == flowName {
+			flow = &f
+			break
+		}
+	}
+
+	if flow == nil {
+		return nil, fmt.Errorf("flow %s not found", flowName)
+	}
+
+	flow.Normalize()
+
+	return flow, nil
 }

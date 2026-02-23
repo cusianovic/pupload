@@ -34,7 +34,7 @@ Otherwise, all flows in the project will be validated.`,
 
 		if len(args) > 0 {
 			// Validate specific flow
-			flow, err := project.GetFlow(root, args[0])
+			flow, err := project.GetFlow(args[0])
 			if err != nil {
 				return err
 			}

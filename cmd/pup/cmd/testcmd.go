@@ -14,6 +14,7 @@ import (
 	"github.com/pupload/pupload/internal/cli/project"
 	"github.com/pupload/pupload/internal/cli/run"
 	"github.com/pupload/pupload/internal/cli/ui"
+	"github.com/pupload/pupload/internal/models"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/spf13/cobra"
@@ -50,6 +51,8 @@ var testCmd = &cobra.Command{
 			return err
 		}
 
+		live, err := cmd.Flags().GetBool("live")
+
 		var g errgroup.Group
 		if remote == "" {
 
@@ -71,7 +74,29 @@ var testCmd = &cobra.Command{
 			}
 		}
 
-		run, flow, err := project.TestFlow(root, remote, flow_name)
+		flow, err := project.GetFlow(flow_name)
+		if err != nil {
+			return err
+		}
+
+		if !live {
+			returnChan := make(chan []models.StoreInput, 1)
+			g.Go(func() error {
+				return project.NewDummyS3(flow.Stores, returnChan)
+			})
+
+			fmt.Println("waiting")
+			newStores := <-returnChan
+			fmt.Println("waited")
+			flow.Stores = newStores
+		}
+
+		node_defs, err := project.GetNodeDefs(root)
+		if err != nil {
+			return err
+		}
+
+		run, flow, err := project.TestFlow(flow, node_defs, remote, false)
 		if err != nil {
 			return err
 		}
@@ -106,6 +131,7 @@ func init() {
 	testCmd.Flags().StringP("remote", "r", "", "sets remote controller to listen on")
 	testCmd.Flags().StringToStringVarP(&inputs, "input", "i", nil, "--flag <input_name>=<file_path>")
 	testCmd.Flags().BoolP("force", "f", false, "forces run to execute with missing inputs")
+	testCmd.Flags().BoolP("live", "l", false, "runs with live s3 provided in flow")
 	testCmd.Flags().Bool("tui", false, "enables TUI for monitoring task")
 }
 
