@@ -5,44 +5,44 @@ const (
 	DefaultAttempts = 3
 )
 
-type NodeDef struct {
+type Task struct {
 	Publisher   string
 	Name        string
 	Image       string
-	Inputs      []NodeEdgeDef
-	Outputs     []NodeEdgeDef
-	Flags       []NodeFlagDef
-	Command     NodeCommandDef
+	Inputs      []TaskEdgeDef
+	Outputs     []TaskEdgeDef
+	Flags       []TaskFlagDef
+	Command     TaskCommandDef
 	Tier        string
 	MaxAttempts int
 }
 
-type NodeFlagDef struct {
+type TaskFlagDef struct {
 	Name        string
 	Description string
 	Required    bool
 	Type        string
 }
 
-type NodeEdgeDef struct {
+type TaskEdgeDef struct {
 	Name        string
 	Description string
 	Required    bool
 	Type        []MimeType
 }
 
-type NodeCommandDef struct {
+type TaskCommandDef struct {
 	Name        string
 	Description string
 	Exec        string
 }
 
-func (nd *NodeDef) Normalize() {
-	if nd.Tier == "" {
-		nd.Tier = DefaultTier
+func (t *Task) Normalize() {
+	if t.Tier == "" {
+		t.Tier = DefaultTier
 	}
 
-	if nd.MaxAttempts <= 0 {
-		nd.MaxAttempts = DefaultAttempts
+	if t.MaxAttempts <= 0 {
+		t.MaxAttempts = DefaultAttempts
 	}
 }

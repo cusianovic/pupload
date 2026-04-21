@@ -17,11 +17,11 @@ import (
 )
 
 type RuntimeFlow struct {
-	Flow     models.Flow
-	FlowRun  models.FlowRun
-	NodeDefs []models.NodeDef
+	Flow    models.Flow
+	FlowRun models.FlowRun
+	Tasks   []models.Task
 
-	nodes  map[string]RuntimeNode
+	steps  map[string]RuntimeStep
 	stores map[string]models.Store
 
 	log *slog.Logger
@@ -29,27 +29,27 @@ type RuntimeFlow struct {
 	TraceParent string
 }
 
-type RuntimeNode struct {
-	*models.Node
-	NodeDef models.NodeDef
+type RuntimeStep struct {
+	*models.Step
+	Task models.Task
 }
 
-func CreateRuntimeFlow(ctx context.Context, flow models.Flow, nodeDefs []models.NodeDef) (RuntimeFlow, error) {
+func CreateRuntimeFlow(ctx context.Context, flow models.Flow, tasks []models.Task) (RuntimeFlow, error) {
 	// Unmarshal Stores
 
 	runtimeFlow := RuntimeFlow{
-		Flow:     flow,
-		NodeDefs: nodeDefs,
+		Flow:  flow,
+		Tasks: tasks,
 
 		stores: make(map[string]models.Store),
-		nodes:  make(map[string]RuntimeNode),
+		steps:  make(map[string]RuntimeStep),
 
 		TraceParent: telemetry.InjectContext(ctx),
 	}
 
 	runtimeFlow.constructLogger()
 	runtimeFlow.constructStores()
-	err := runtimeFlow.constructRuntimeNode()
+	err := runtimeFlow.constructRuntimeStep()
 	if err != nil {
 		return runtimeFlow, err
 	}
@@ -65,12 +65,12 @@ func CreateRuntimeFlow(ctx context.Context, flow models.Flow, nodeDefs []models.
 
 func (rt *RuntimeFlow) RebuildRuntimeFlow() {
 
-	rt.nodes = make(map[string]RuntimeNode)
+	rt.steps = make(map[string]RuntimeStep)
 	rt.stores = make(map[string]models.Store)
 
 	rt.constructLogger()
 	rt.constructStores()
-	rt.constructRuntimeNode()
+	rt.constructRuntimeStep()
 }
 
 func (rt *RuntimeFlow) createFlowRun() {
@@ -79,15 +79,15 @@ func (rt *RuntimeFlow) createFlowRun() {
 
 	waitingUrls := make([]models.WaitingURL, 0)
 	artifacts := make(map[string]models.Artifact)
-	nodeStates := make(map[string]models.NodeState)
+	stepStates := make(map[string]models.StepState)
 
-	for _, node := range rt.nodes {
-		nodeStates[node.ID] = models.NodeState{Status: models.NODERUN_IDLE, Logs: []models.LogRecord{}}
+	for _, step := range rt.steps {
+		stepStates[step.ID] = models.StepState{Status: models.STEPRUN_IDLE, Logs: []models.LogRecord{}}
 	}
 
 	value := models.FlowRun{
 		ID:          id.String(),
-		NodeState:   nodeStates,
+		StepState:   stepStates,
 		Status:      models.FLOWRUN_STOPPED,
 		WaitingURLs: waitingUrls,
 		Artifacts:   artifacts,
@@ -96,21 +96,21 @@ func (rt *RuntimeFlow) createFlowRun() {
 	rt.FlowRun = value
 }
 
-func (rt *RuntimeFlow) constructRuntimeNode() error {
-	for _, node := range rt.Flow.Nodes {
+func (rt *RuntimeFlow) constructRuntimeStep() error {
+	for _, step := range rt.Flow.Steps {
 		found := false
-		defName := node.Uses
+		defName := step.Uses
 
-		for _, def := range rt.NodeDefs {
-			if defName == fmt.Sprintf("%s/%s", def.Publisher, def.Name) {
+		for _, task := range rt.Tasks {
+			if defName == fmt.Sprintf("%s/%s", task.Publisher, task.Name) {
 				found = true
-				rt.nodes[node.ID] = RuntimeNode{Node: &node, NodeDef: def}
+				rt.steps[step.ID] = RuntimeStep{Step: &step, Task: task}
 				break
 			}
 		}
 
 		if !found {
-			return fmt.Errorf("unable to find node with defName %s", defName)
+			return fmt.Errorf("unable to find task with defName %s", defName)
 		}
 	}
 

@@ -16,8 +16,8 @@ type ProjectService struct {
 }
 
 type ProjectBundle struct {
-	Flow models.Flow
-	Defs []models.NodeDef
+	Flow  models.Flow
+	Tasks []models.Task
 }
 
 func CreateProjectService(cfg RedisProjectRepoConfig) (*ProjectService, error) {
@@ -68,7 +68,7 @@ func (p *ProjectService) GetFlowFromProject(ctx context.Context, projectID uuid.
 		return nil, fmt.Errorf("Flow %s does not exist in project %s", flowName, projectID.String())
 	}
 
-	b.Defs = proj.NodeDefs
+	b.Tasks = proj.Tasks
 	return b, nil
 
 }

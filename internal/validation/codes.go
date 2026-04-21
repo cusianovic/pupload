@@ -7,16 +7,16 @@ const (
 	ErrFlowInvalidTimeout = "FLOW_003"
 )
 
-// Node Codes (NODE_###)
+// Step Codes (NODE_###)
 const (
-	ErrNodeDefNotFound   = "NODE_001"
-	ErrNodeMissingInput  = "NODE_002"
-	ErrNodeMissingOutput = "NODE_003"
-	ErrNodeInvalidTier   = "NODE_004"
-	ErrNodeMissingFlag   = "NODE_005"
-	ErrNodeUnknownFlag   = "NODE_006"
-	ErrNodeDuplicateID   = "NODE_007"
-	ErrNodeMissingID     = "NODE_008"
+	ErrTaskNotFound      = "NODE_001"
+	ErrStepMissingInput  = "NODE_002"
+	ErrStepMissingOutput = "NODE_003"
+	ErrStepInvalidTier   = "NODE_004"
+	ErrStepMissingFlag   = "NODE_005"
+	ErrStepUnknownFlag   = "NODE_006"
+	ErrStepDuplicateID   = "NODE_007"
+	ErrStepMissingID     = "NODE_008"
 )
 
 // Def Codes (DEF_###)

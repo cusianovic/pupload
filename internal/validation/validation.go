@@ -21,7 +21,7 @@ type ValidationResult struct {
 	Warnings []ValidationEntry
 }
 
-func Validate(flow models.Flow, defs []models.NodeDef) *ValidationResult {
+func Validate(flow models.Flow, tasks []models.Task) *ValidationResult {
 	res := &ValidationResult{}
 
 	// Store errors and warnings
@@ -29,26 +29,26 @@ func Validate(flow models.Flow, defs []models.NodeDef) *ValidationResult {
 		storeInvalidType(res, store)
 	}
 
-	// Node errors and warnings
-	nodeDuplicateID(res, flow.Nodes)
-	for _, node := range flow.Nodes {
-		nodeNoDefFound(res, node, defs)
-		nodeMissingInput(res, node, defs)
-		// nodeMissingOutput(res, node, defs)
-		nodeInvalidTier(res, node, defs)
-		nodeMissingFlag(res, node, defs)
-		nodeUnknownFlag(res, node, defs)
-		nodeMissingID(res, node)
+	// Step errors and warnings
+	stepDuplicateID(res, flow.Steps)
+	for _, step := range flow.Steps {
+		stepNoTaskFound(res, step, tasks)
+		stepMissingInput(res, step, tasks)
+		// stepMissingOutput(res, step, tasks)
+		stepInvalidTier(res, step, tasks)
+		stepMissingFlag(res, step, tasks)
+		stepUnknownFlag(res, step, tasks)
+		stepMissingID(res, step)
 	}
 
 	// Edge errors and warnings
 	edgeNoConsumers(res, flow)
 	edgeNoProducers(res, flow)
-	edgeTypeMismatch(res, flow, defs)
+	edgeTypeMismatch(res, flow, tasks)
 
 	// Well errors and warnings
 	wellDuplicateEdge(res, flow.DataWells)
-	wellEdgeNotFound(res, flow.DataWells, flow.Nodes)
+	wellEdgeNotFound(res, flow.DataWells, flow.Steps)
 	for _, well := range flow.DataWells {
 		wellInvalidSource(res, well)
 		wellStoreNotFound(res, well, flow.Stores)

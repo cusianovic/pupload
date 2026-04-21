@@ -6,6 +6,6 @@ type Project struct {
 	ID uuid.UUID // Controller scoped, should not be set
 
 	Flows        []Flow
-	NodeDefs     []NodeDef
+	Tasks        []Task
 	GlobalStores []StoreInput
 }

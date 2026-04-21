@@ -1,4 +1,4 @@
-package node
+package step
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ import (
 	"github.com/google/uuid"
 )
 
-type NodeService struct {
+type StepService struct {
 	SyncLayer      syncplane.SyncLayer
 	CS             *container.ContainerService
 	ResourceManger *resources.ResourceManager
@@ -26,23 +26,23 @@ type NodeService struct {
 	mu sync.Mutex
 }
 
-func CreateNodeService(cs *container.ContainerService, s syncplane.SyncLayer, rm *resources.ResourceManager) (NodeService, error) {
+func CreateStepService(cs *container.ContainerService, s syncplane.SyncLayer, rm *resources.ResourceManager) (StepService, error) {
 
 	err := s.UpdateSubscribedQueues(rm.GetValidTierMap())
 	if err != nil {
-		return NodeService{}, err
+		return StepService{}, err
 	}
 
-	return NodeService{
+	return StepService{
 		CS:             cs,
 		SyncLayer:      s,
 		ResourceManger: rm,
 	}, nil
 }
 
-func (ns *NodeService) addEnvFlagMap(m map[string]string, nodeDef models.NodeDef, node models.Node) error {
+func (ss *StepService) addEnvFlagMap(m map[string]string, task models.Task, step models.Step) error {
 
-	flags, err := ns.getFlags(nodeDef, node)
+	flags, err := ss.getFlags(task, step)
 	if err != nil {
 		return err
 	}
@@ -63,16 +63,16 @@ type preparedIO struct {
 	url       string
 }
 
-func (ns *NodeService) prepareIO(inputs, outputs map[string]string, nodeDef models.NodeDef, basePath string) ([]preparedIO, []preparedIO, error) {
+func (ss *StepService) prepareIO(inputs, outputs map[string]string, task models.Task, basePath string) ([]preparedIO, []preparedIO, error) {
 	in := make([]preparedIO, 0, len(inputs))
 	out := make([]preparedIO, 0, len(outputs))
 
-	for _, inputDef := range nodeDef.Inputs {
+	for _, inputDef := range task.Inputs {
 		inputURL, ok := inputs[inputDef.Name]
 		if !ok {
 			switch inputDef.Required {
 			case true:
-				return nil, nil, fmt.Errorf("PrepareInputs: node missing required input %s", inputDef.Name)
+				return nil, nil, fmt.Errorf("PrepareInputs: step missing required input %s", inputDef.Name)
 			case false:
 				continue
 			}
@@ -83,12 +83,12 @@ func (ns *NodeService) prepareIO(inputs, outputs map[string]string, nodeDef mode
 			return nil, nil, fmt.Errorf("PrepareInputs: error creating mimeset: %w", err)
 		}
 
-		ext, err := ns.validateInput(inputURL, *typeSet)
+		ext, err := ss.validateInput(inputURL, *typeSet)
 		if err != nil {
 			return nil, nil, fmt.Errorf("PrepareInputs: error validating inputs: %w", err)
 		}
 
-		path, filename := ns.getPath(basePath, ext)
+		path, filename := ss.getPath(basePath, ext)
 
 		in = append(in, preparedIO{
 			name:      inputDef.Name,
@@ -100,14 +100,14 @@ func (ns *NodeService) prepareIO(inputs, outputs map[string]string, nodeDef mode
 
 	}
 
-	for _, outputDef := range nodeDef.Outputs {
+	for _, outputDef := range task.Outputs {
 		outputURL, ok := outputs[outputDef.Name]
 		if !ok {
 			return nil, nil, fmt.Errorf("no output URL for output %s", outputDef.Name)
 		}
 
-		extension := ns.getOutputExtension(outputDef.Type)
-		path, filename := ns.getPath(basePath, extension)
+		extension := ss.getOutputExtension(outputDef.Type)
+		path, filename := ss.getPath(basePath, extension)
 
 		out = append(out, preparedIO{
 			url:       outputURL,
@@ -121,13 +121,13 @@ func (ns *NodeService) prepareIO(inputs, outputs map[string]string, nodeDef mode
 	return in, out, nil
 }
 
-func (ns *NodeService) addIOToEnvMap(env map[string]string, prepped []preparedIO) {
+func (ss *StepService) addIOToEnvMap(env map[string]string, prepped []preparedIO) {
 	for _, prep := range prepped {
 		env[prep.name] = prep.path
 	}
 }
 
-func (ns *NodeService) getOutputExtension(types []models.MimeType) string {
+func (ss *StepService) getOutputExtension(types []models.MimeType) string {
 	if len(types) != 1 {
 		return ""
 	}
@@ -138,7 +138,7 @@ func (ns *NodeService) getOutputExtension(types []models.MimeType) string {
 
 // Validates a given uploaded file against the qualified allowed mime types.
 // Returns the appoprriate file extension
-func (ns *NodeService) validateInput(url string, mimeSet mimetypes.MimeSet) (ext string, err error) {
+func (ss *StepService) validateInput(url string, mimeSet mimetypes.MimeSet) (ext string, err error) {
 
 	resp, err := http.Get(url)
 
@@ -175,17 +175,17 @@ func stripMimeParams(mime string) string {
 	return mime
 }
 
-func (ns *NodeService) getPath(base_path string, extension string) (path string, filename string) {
+func (ss *StepService) getPath(base_path string, extension string) (path string, filename string) {
 	filename = uuid.Must(uuid.NewV7()).String() + extension
 	return filepath.Join(base_path, filename), filename
 }
 
-func (ns *NodeService) getFlags(nodeDef models.NodeDef, node models.Node) (map[string]string, error) {
+func (ss *StepService) getFlags(task models.Task, step models.Step) (map[string]string, error) {
 	flagMap := make(map[string]string)
 
-	for _, flagDef := range nodeDef.Flags {
+	for _, flagDef := range task.Flags {
 
-		for _, flagVal := range node.Flags {
+		for _, flagVal := range step.Flags {
 			if flagVal.Name == flagDef.Name {
 				flagMap[flagVal.Name] = flagVal.Value
 				break

@@ -140,10 +140,10 @@ func initialModel(flowrun models.FlowRun, flow models.Flow) model {
 	}
 }
 
-// rebuild Nodes from FlowRun.NodeState
+// rebuild Steps from FlowRun.StepState
 func buildNodesFromFlowRun(fr models.FlowRun) []Node {
-	nodes := make([]Node, 0, len(fr.NodeState))
-	for name, n := range fr.NodeState {
+	nodes := make([]Node, 0, len(fr.StepState))
+	for name, n := range fr.StepState {
 		nodes = append(nodes, Node{
 			Name:     name,
 			Pipeline: "", // fill if you have pipeline info
@@ -609,15 +609,15 @@ func colorFlowRunStatusText(s models.FlowRunStatus) string {
 // Node.Status is a string (e.g. "IDLE", "RUNNING", ...).
 func colorNodeStatusText(s string) string {
 	switch s {
-	case string(models.NODERUN_IDLE):
+	case string(models.STEPRUN_IDLE):
 		return colorBlue + s + colorFgReset
-	case string(models.NODERUN_READY):
+	case string(models.STEPRUN_READY):
 		return colorCyan + s + colorFgReset
-	case string(models.NODERUN_RUNNING):
+	case string(models.STEPRUN_RUNNING):
 		return colorGreen + s + colorFgReset
-	case string(models.NODERUN_COMPLETE):
+	case string(models.STEPRUN_COMPLETE):
 		return colorGreen + s + colorFgReset
-	case string(models.NODERUN_ERROR):
+	case string(models.STEPRUN_ERROR):
 		return colorRed + s + colorFgReset
 	default:
 		return s
@@ -699,7 +699,7 @@ func (m model) View() string {
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("Logs for %s\n\n", m.logViewerNode))
 
-		nodeState, ok := m.flowRun.NodeState[m.logViewerNode]
+		nodeState, ok := m.flowRun.StepState[m.logViewerNode]
 		if ok {
 			logs := nodeState.Logs
 			maxLines := 20
@@ -802,15 +802,15 @@ func (m model) View() string {
 		var idle, ready, running, complete, failed int
 		for _, n := range m.Nodes {
 			switch n.Status {
-			case string(models.NODERUN_IDLE):
+			case string(models.STEPRUN_IDLE):
 				idle++
-			case string(models.NODERUN_READY):
+			case string(models.STEPRUN_READY):
 				ready++
-			case string(models.NODERUN_RUNNING):
+			case string(models.STEPRUN_RUNNING):
 				running++
-			case string(models.NODERUN_COMPLETE):
+			case string(models.STEPRUN_COMPLETE):
 				complete++
-			case string(models.NODERUN_ERROR):
+			case string(models.STEPRUN_ERROR):
 				failed++
 			}
 		}

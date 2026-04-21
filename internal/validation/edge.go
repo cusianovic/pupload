@@ -9,7 +9,7 @@ import (
 
 func edgeNoProducers(r *ValidationResult, flow models.Flow) {
 	hasProducer := make(map[string]bool)
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		for _, input := range node.Inputs {
 			hasProducer[input.Edge] = false
 		}
@@ -21,7 +21,7 @@ func edgeNoProducers(r *ValidationResult, flow models.Flow) {
 		}
 	}
 
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		for _, output := range node.Outputs {
 			hasProducer[output.Edge] = true
 		}
@@ -42,7 +42,7 @@ func edgeNoProducers(r *ValidationResult, flow models.Flow) {
 
 func edgeNoConsumers(r *ValidationResult, flow models.Flow) {
 	hasConsumer := make(map[string]bool)
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		for _, output := range node.Outputs {
 			hasConsumer[output.Edge] = false
 		}
@@ -54,7 +54,7 @@ func edgeNoConsumers(r *ValidationResult, flow models.Flow) {
 		}
 	}
 
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		for _, input := range node.Inputs {
 			hasConsumer[input.Edge] = true
 		}
@@ -73,7 +73,7 @@ func edgeNoConsumers(r *ValidationResult, flow models.Flow) {
 	}
 }
 
-func edgeTypeMismatch(r *ValidationResult, flow models.Flow, nodeDefs []models.NodeDef) {
+func edgeTypeMismatch(r *ValidationResult, flow models.Flow, tasks []models.Task) {
 
 	// edgeTypeMap := make(map[string]string)
 
@@ -90,14 +90,14 @@ func edgeTypeMismatch(r *ValidationResult, flow models.Flow, nodeDefs []models.N
 		}
 	}
 
-	for _, node := range flow.Nodes {
-		def := getNodeDef(node, nodeDefs)
+	for _, step := range flow.Steps {
+		def := getTaskDef(step, tasks)
 		if def == nil {
 			continue
 		}
 
-		for _, inEdge := range node.Inputs {
-			var edgeDef models.NodeEdgeDef
+		for _, inEdge := range step.Inputs {
+			var edgeDef models.TaskEdgeDef
 			for _, ed := range def.Inputs {
 				if ed.Name == inEdge.Name {
 					edgeDef = ed
@@ -109,11 +109,11 @@ func edgeTypeMismatch(r *ValidationResult, flow models.Flow, nodeDefs []models.N
 				return
 			}
 
-			inputSet[EdgeNodeKey{inEdge.Edge, node.ID}] = *set
+			inputSet[EdgeNodeKey{inEdge.Edge, step.ID}] = *set
 		}
 
-		for _, outEdge := range node.Outputs {
-			var edgeDef models.NodeEdgeDef
+		for _, outEdge := range step.Outputs {
+			var edgeDef models.TaskEdgeDef
 			for _, ed := range def.Outputs {
 				if ed.Name == outEdge.Name {
 					edgeDef = ed
@@ -129,14 +129,14 @@ func edgeTypeMismatch(r *ValidationResult, flow models.Flow, nodeDefs []models.N
 		}
 	}
 
-	for _, node := range flow.Nodes {
-		for _, in := range node.Inputs {
+	for _, step := range flow.Steps {
+		for _, in := range step.Inputs {
 			// Skip type check for edges from datawells (they can be any type)
 			if datawellEdges[in.Edge] {
 				continue
 			}
 
-			inputTypes := inputSet[EdgeNodeKey{in.Edge, node.ID}]
+			inputTypes := inputSet[EdgeNodeKey{in.Edge, step.ID}]
 			outputTypes := outputSet[in.Edge]
 
 			intersection := inputTypes.Intersection(outputTypes)

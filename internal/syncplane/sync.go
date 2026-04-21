@@ -6,14 +6,14 @@ import (
 )
 
 type SyncLayer interface {
-	RegisterExecuteNodeHandler(handler ExecuteNodeHandler) error
-	EnqueueExecuteNode(payload NodeExecutePayload) error
+	RegisterExecuteStepHandler(handler ExecuteStepHandler) error
+	EnqueueExecuteStep(payload StepExecutePayload) error
 
-	RegisterNodeFinishedHandler(handler NodeFinishedHandler) error
-	EnqueueNodeFinished(payload NodeFinishedPayload) error
+	RegisterStepFinishedHandler(handler StepFinishedHandler) error
+	EnqueueStepFinished(payload StepFinishedPayload) error
 
-	RegisterNodeFailedHandler(handler NodeFailedHandler) error
-	EnqueueNodeFailed(payload NodeFailedPayload) error
+	RegisterStepFailedHandler(handler StepFailedHandler) error
+	EnqueueStepFailed(payload StepFailedPayload) error
 
 	UpdateSubscribedQueues(queues map[string]int) error
 

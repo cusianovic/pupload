@@ -81,7 +81,7 @@ func projectRoutes(f *service.FlowService, p *projects.ProjectService) http.Hand
 						http.Error(w, err.Error(), http.StatusBadRequest)
 					}
 
-					run, err := f.RunFlow(bundle.Flow, bundle.Defs)
+					run, err := f.RunFlow(bundle.Flow, bundle.Tasks)
 					if err != nil {
 						http.Error(w, fmt.Sprintf("unable to run flow: %s", err), http.StatusInternalServerError)
 						return

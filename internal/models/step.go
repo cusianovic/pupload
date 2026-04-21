@@ -1,20 +1,20 @@
 package models
 
-type Node struct {
+type Step struct {
 	ID      string
 	Uses    string
-	Inputs  []NodeEdge
-	Outputs []NodeEdge
-	Flags   []NodeFlag
+	Inputs  []StepEdge
+	Outputs []StepEdge
+	Flags   []StepFlag
 	Command string
 }
 
-type NodeEdge struct {
+type StepEdge struct {
 	Name string
 	Edge string
 }
 
-type NodeFlag struct {
+type StepFlag struct {
 	Name  string
 	Value string
 }

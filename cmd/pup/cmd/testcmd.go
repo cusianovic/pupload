@@ -91,12 +91,12 @@ var testCmd = &cobra.Command{
 			flow.Stores = newStores
 		}
 
-		node_defs, err := project.GetNodeDefs(root)
+		tasks, err := project.GetTasks(root)
 		if err != nil {
 			return err
 		}
 
-		run, flow, err := project.TestFlow(flow, node_defs, remote, false)
+		run, flow, err := project.TestFlow(flow, tasks, remote, false)
 		if err != nil {
 			return err
 		}

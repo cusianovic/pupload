@@ -23,7 +23,7 @@ DataWells:
     Type: dynamic
 
 
-Nodes:
+Steps:
   - ID: 0
     DefName: github.com/pupload/pupload/ffmpeg
     Inputs:

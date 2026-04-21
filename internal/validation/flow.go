@@ -8,7 +8,7 @@ import (
 )
 
 func flowDetectEmpty(r *ValidationResult, flow models.Flow) {
-	isEmpty := len(flow.Nodes) == 0
+	isEmpty := len(flow.Steps) == 0
 
 	if isEmpty {
 		r.AddError(ValidationEntry{
@@ -24,7 +24,7 @@ func flowDetectCycle(r *ValidationResult, flow models.Flow) {
 	edgeProducers := make(map[string]string)
 	edgeConsumers := make(map[string][]string)
 
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		for _, output := range node.Outputs {
 			edgeProducers[output.Edge] = node.ID
 		}
@@ -46,7 +46,7 @@ func flowDetectCycle(r *ValidationResult, flow models.Flow) {
 	}
 
 	q := make([]string, 0)
-	for _, node := range flow.Nodes {
+	for _, node := range flow.Steps {
 		if inDegree[node.ID] == 0 {
 			q = append(q, node.ID)
 		}
@@ -68,7 +68,7 @@ func flowDetectCycle(r *ValidationResult, flow models.Flow) {
 
 	}
 
-	isDag := processedCount == len(flow.Nodes)
+	isDag := processedCount == len(flow.Steps)
 
 	if !isDag {
 		r.AddError(ValidationEntry{

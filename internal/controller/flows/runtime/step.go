@@ -35,23 +35,23 @@ func (rt *RuntimeFlow) Step(s syncplane.SyncLayer) {
 		case models.FLOWRUN_WAITING:
 
 			rt.updateWaiting()
-			rt.updateAllNodes()
+			rt.updateAllSteps()
 
-			if len(rt.nodesReady()) == 0 {
+			if len(rt.stepsReady()) == 0 {
 				return
 			}
 
 			rt.FlowRun.Status = models.FLOWRUN_RUNNING
 
 		case models.FLOWRUN_RUNNING:
-			for _, nodeID := range rt.nodesReady() {
-				if err := rt.handleExecuteNode(ctx, nodeID, s); err != nil {
-					rt.log.Error("error executing node", "err", err, "node_id", nodeID)
+			for _, stepID := range rt.stepsReady() {
+				if err := rt.handleExecuteStep(ctx, stepID, s); err != nil {
+					rt.log.Error("error executing step", "err", err, "step_id", stepID)
 					rt.FlowRun.Status = models.FLOWRUN_ERROR
 					return
 				}
 
-				rt.FlowRun.NodeState[nodeID] = models.NodeState{Status: models.NODERUN_RUNNING, Logs: rt.FlowRun.NodeState[nodeID].Logs}
+				rt.FlowRun.StepState[stepID] = models.StepState{Status: models.STEPRUN_RUNNING, Logs: rt.FlowRun.StepState[stepID].Logs}
 			}
 
 			rt.FlowRun.Status = models.FLOWRUN_WAITING
@@ -90,34 +90,34 @@ func (rt *RuntimeFlow) IsError() bool {
 }
 
 func (rt *RuntimeFlow) IsComplete() bool {
-	return rt.FlowRun.Status == models.FLOWRUN_COMPLETE || len(rt.nodesLeft()) == 0
+	return rt.FlowRun.Status == models.FLOWRUN_COMPLETE || len(rt.stepsLeft()) == 0
 }
 
-func (rt *RuntimeFlow) nodesLeft() []string {
+func (rt *RuntimeFlow) stepsLeft() []string {
 	left := make([]string, 0)
-	for nodeID, state := range rt.FlowRun.NodeState {
-		if state.Status != models.NODERUN_COMPLETE {
-			left = append(left, nodeID)
+	for stepID, state := range rt.FlowRun.StepState {
+		if state.Status != models.STEPRUN_COMPLETE {
+			left = append(left, stepID)
 		}
 	}
 
 	return left
 }
 
-func (rt *RuntimeFlow) nodesReady() []string {
+func (rt *RuntimeFlow) stepsReady() []string {
 	ready := make([]string, 0)
-	for nodeID, state := range rt.FlowRun.NodeState {
-		if state.Status == models.NODERUN_READY {
-			ready = append(ready, nodeID)
+	for stepID, state := range rt.FlowRun.StepState {
+		if state.Status == models.STEPRUN_READY {
+			ready = append(ready, stepID)
 		}
 	}
 
 	return ready
 }
 
-func (rt *RuntimeFlow) updateAllNodes() {
-	for id := range rt.nodes {
-		rt.shouldNodeReady(id)
+func (rt *RuntimeFlow) updateAllSteps() {
+	for id := range rt.steps {
+		rt.shouldStepReady(id)
 	}
 
 }

@@ -1,4 +1,4 @@
-package node
+package step
 
 import (
 	"context"
@@ -18,48 +18,48 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExecutePayload, resource container.Resources) error {
+func (ss *StepService) StepExecute(ctx context.Context, payload syncplane.StepExecutePayload, resource container.Resources) error {
 
 	l := logging.LoggerFromCtx(ctx)
-	ctx, span := telemetry.Tracer("pupload.worker").Start(ctx, "NodeExecute")
+	ctx, span := telemetry.Tracer("pupload.worker").Start(ctx, "StepExecute")
 	defer span.End()
 	span.SetAttributes(
-		attribute.String("node_id", payload.Node.ID),
-		attribute.String("container_image", payload.NodeDef.Image),
-		attribute.String("tier", payload.NodeDef.Tier),
+		attribute.String("step_id", payload.Step.ID),
+		attribute.String("container_image", payload.Task.Image),
+		attribute.String("tier", payload.Task.Tier),
 	)
 	l.With("span_id", span.SpanContext().SpanID().String())
 
 	// handle worker capabiliites
 
-	in, out, err := n.prepareIO(payload.InputURLs, payload.OutputURLs, payload.NodeDef, "/tmp")
+	in, out, err := ss.prepareIO(payload.InputURLs, payload.OutputURLs, payload.Task, "/tmp")
 	if err != nil {
 		return err
 	}
 
-	command, err := n.generateCommand(payload.Node, payload.NodeDef, in, out)
+	command, err := ss.generateCommand(payload.Step, payload.Task, in, out)
 	if err != nil {
 		return err
 	}
 
 	l.Info("validating container image")
-	ok, err := n.CS.IM.Validate(ctx, payload.NodeDef.Image)
+	ok, err := ss.CS.IM.Validate(ctx, payload.Task.Image)
 	if err != nil {
 		l.Error("error validating image", "err", err)
 		return err
 	}
 	if !ok {
 		l.Warn("image not found, attempting pull")
-		err := n.CS.IM.Pull(ctx, payload.NodeDef.Image)
+		err := ss.CS.IM.Pull(ctx, payload.Task.Image)
 		if err != nil {
 			l.Error("error pulling image", "err", err)
 			return err
 		}
 	}
 
-	containerID, err := n.CS.RT.CreateContainer(ctx, cont.ContainerConfig{
-		Image: payload.NodeDef.Image,
-		Name:  fmt.Sprintf("pupload-%s-%s", payload.RunID, payload.Node.ID),
+	containerID, err := ss.CS.RT.CreateContainer(ctx, cont.ContainerConfig{
+		Image: payload.Task.Image,
+		Name:  fmt.Sprintf("pupload-%s-%s", payload.RunID, payload.Step.ID),
 		Cmd:   command,
 
 		HostConfig: &container.HostConfig{
@@ -76,22 +76,22 @@ func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExe
 	l.Info("container created")
 	span.AddEvent("container created")
 
-	defer n.CS.RT.RemoveContainer(ctx, containerID)
+	defer ss.CS.RT.RemoveContainer(ctx, containerID)
 
-	if err := n.downloadAllInputsToContainer(ctx, containerID, in); err != nil {
+	if err := ss.downloadAllInputsToContainer(ctx, containerID, in); err != nil {
 		return err
 	}
 
 	l.Info("files downloaded to container")
 
-	if err := n.CS.RT.StartContainer(ctx, containerID); err != nil {
+	if err := ss.CS.RT.StartContainer(ctx, containerID); err != nil {
 		return err
 	}
 
 	l.Info("container started")
 	span.AddEvent("container started")
 
-	res, err := n.CS.RT.WaitContainer(ctx, containerID)
+	res, err := ss.CS.RT.WaitContainer(ctx, containerID)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExe
 	l.Info("container finished")
 	span.AddEvent("container finished")
 
-	logs, err := n.CS.RT.GetLogs(ctx, containerID)
+	logs, err := ss.CS.RT.GetLogs(ctx, containerID)
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExe
 
 	l.Info("container logs", "logs", logs)
 
-	if err := n.uploadAllOutputsFromContainer(ctx, containerID, out); err != nil {
+	if err := ss.uploadAllOutputsFromContainer(ctx, containerID, out); err != nil {
 		return err
 	}
 
@@ -125,42 +125,42 @@ func (n *NodeService) NodeExecute(ctx context.Context, payload syncplane.NodeExe
 	return nil
 }
 
-func (n *NodeService) downloadAllInputsToContainer(ctx context.Context, containerID string, inputs []preparedIO) error {
+func (ss *StepService) downloadAllInputsToContainer(ctx context.Context, containerID string, inputs []preparedIO) error {
 	inGroup, errCtx := errgroup.WithContext(ctx)
 	for _, i := range inputs {
 		i := i
 		inGroup.Go(func() error {
-			return n.CS.IO.DownloadIntoContainer(errCtx, containerID, i.url, i.base_path, i.filename)
+			return ss.CS.IO.DownloadIntoContainer(errCtx, containerID, i.url, i.base_path, i.filename)
 		})
 	}
 
 	return inGroup.Wait()
 }
 
-func (n *NodeService) uploadAllOutputsFromContainer(ctx context.Context, containerID string, outputs []preparedIO) error {
+func (ss *StepService) uploadAllOutputsFromContainer(ctx context.Context, containerID string, outputs []preparedIO) error {
 	outGroup, errCtx := errgroup.WithContext(ctx)
 	for _, o := range outputs {
 		o := o
 		outGroup.Go(func() error {
-			return n.CS.IO.UploadFromContainer(errCtx, containerID, o.url, o.path, o.filename)
+			return ss.CS.IO.UploadFromContainer(errCtx, containerID, o.url, o.path, o.filename)
 		})
 	}
 
 	return outGroup.Wait()
 }
 
-func (n *NodeService) generateCommand(node models.Node, nodeDef models.NodeDef, in, out []preparedIO) ([]string, error) {
+func (ss *StepService) generateCommand(step models.Step, task models.Task, in, out []preparedIO) ([]string, error) {
 	envMap := make(map[string]string)
 
-	if err := n.addEnvFlagMap(envMap, nodeDef, node); err != nil {
+	if err := ss.addEnvFlagMap(envMap, task, step); err != nil {
 		return nil, err
 	}
 
 	// prep inputs
-	n.addIOToEnvMap(envMap, in)
-	n.addIOToEnvMap(envMap, out)
+	ss.addIOToEnvMap(envMap, in)
+	ss.addIOToEnvMap(envMap, out)
 
-	expand := os.Expand(nodeDef.Command.Exec, func(s string) string {
+	expand := os.Expand(task.Command.Exec, func(s string) string {
 		return envMap[s]
 	})
 

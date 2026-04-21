@@ -53,8 +53,8 @@ func handleFlowRoutes(f *flows.FlowService) http.Handler {
 
 	r.Post("/test", func(w http.ResponseWriter, r *http.Request) {
 		var input struct {
-			Flow     models.Flow
-			NodeDefs []models.NodeDef
+			Flow  models.Flow
+			Tasks []models.Task
 		}
 
 		if err := render.DecodeJSON(r.Body, &input); err != nil {
@@ -63,7 +63,7 @@ func handleFlowRoutes(f *flows.FlowService) http.Handler {
 			return
 		}
 
-		run, err := f.RunFlow(input.Flow, input.NodeDefs)
+		run, err := f.RunFlow(input.Flow, input.Tasks)
 		if err != nil {
 			log.Error("unable to run flow", "err", err)
 			http.Error(w, fmt.Sprintf("unable to run flow: %s", err), http.StatusInternalServerError)

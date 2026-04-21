@@ -10,11 +10,11 @@ import (
 	"github.com/pupload/pupload/internal/telemetry"
 )
 
-func (rt *RuntimeFlow) handleExecuteNode(ctx context.Context, nodeID string, s syncplane.SyncLayer) error {
-	node := rt.nodes[nodeID]
+func (rt *RuntimeFlow) handleExecuteStep(ctx context.Context, stepID string, s syncplane.SyncLayer) error {
+	step := rt.steps[stepID]
 	inputs := make(map[string]string)
 
-	for _, edge := range node.Inputs {
+	for _, edge := range step.Inputs {
 		artifact := rt.FlowRun.Artifacts[edge.Edge]
 		store := rt.stores[artifact.StoreName]
 
@@ -28,7 +28,7 @@ func (rt *RuntimeFlow) handleExecuteNode(ctx context.Context, nodeID string, s s
 	}
 
 	outputs := make(map[string]string)
-	for _, edge := range node.Outputs {
+	for _, edge := range step.Outputs {
 
 		artifact, err := rt.makeOutputArtifact(edge)
 		if err != nil {
@@ -57,7 +57,7 @@ func (rt *RuntimeFlow) handleExecuteNode(ctx context.Context, nodeID string, s s
 		rt.FlowRun.WaitingURLs = append(rt.FlowRun.WaitingURLs, WaitingURL)
 	}
 
-	err := node.executeNode(ctx, s, rt.FlowRun.ID, inputs, outputs)
+	err := step.executeStep(ctx, s, rt.FlowRun.ID, inputs, outputs)
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (rt *RuntimeFlow) handleExecuteNode(ctx context.Context, nodeID string, s s
 	return nil
 }
 
-func (rt *RuntimeFlow) makeOutputArtifact(edge models.NodeEdge) (*models.Artifact, error) {
+func (rt *RuntimeFlow) makeOutputArtifact(edge models.StepEdge) (*models.Artifact, error) {
 	for _, well := range rt.Flow.DataWells {
 		if well.Edge != edge.Edge {
 			continue
@@ -94,35 +94,35 @@ func (rt *RuntimeFlow) makeOutputArtifact(edge models.NodeEdge) (*models.Artifac
 
 }
 
-func (rt *RuntimeFlow) HandleNodeFinished(nodeID string, logs []models.LogRecord) error {
-	_, ok := rt.nodes[nodeID]
+func (rt *RuntimeFlow) HandleStepFinished(stepID string, logs []models.LogRecord) error {
+	_, ok := rt.steps[stepID]
 	if !ok {
-		return fmt.Errorf("HandleNodeFinished: node does not exist")
+		return fmt.Errorf("HandleStepFinished: step does not exist")
 	}
 
-	curr_state := rt.FlowRun.NodeState[nodeID]
+	curr_state := rt.FlowRun.StepState[stepID]
 	new_logs := append(curr_state.Logs, logs...)
-	rt.FlowRun.NodeState[nodeID] = models.NodeState{Status: models.NODERUN_COMPLETE, Logs: new_logs}
+	rt.FlowRun.StepState[stepID] = models.StepState{Status: models.STEPRUN_COMPLETE, Logs: new_logs}
 
 	return nil
 }
 
-func (rt *RuntimeFlow) HandleNodeFailed(nodeID string, logs []models.LogRecord, err string, attempt, maxAttempt int, isFinal bool) error {
-	_, ok := rt.nodes[nodeID]
+func (rt *RuntimeFlow) HandleStepFailed(stepID string, logs []models.LogRecord, err string, attempt, maxAttempt int, isFinal bool) error {
+	_, ok := rt.steps[stepID]
 	if !ok {
-		return fmt.Errorf("HandleNodeFailed: node does not exist")
+		return fmt.Errorf("HandleStepFailed: step does not exist")
 	}
 
-	curr_state := rt.FlowRun.NodeState[nodeID]
+	curr_state := rt.FlowRun.StepState[stepID]
 	new_logs := append(curr_state.Logs, logs...)
 
-	status := models.NODERUN_RETRYING
+	status := models.STEPRUN_RETRYING
 	if isFinal {
 		rt.FlowRun.Status = models.FLOWRUN_ERROR
-		status = models.NODERUN_ERROR
+		status = models.STEPRUN_ERROR
 	}
 
-	rt.FlowRun.NodeState[nodeID] = models.NodeState{
+	rt.FlowRun.StepState[stepID] = models.StepState{
 		Status:      status,
 		Logs:        new_logs,
 		Error:       err,
@@ -134,36 +134,36 @@ func (rt *RuntimeFlow) HandleNodeFailed(nodeID string, logs []models.LogRecord, 
 
 }
 
-func (rn *RuntimeNode) executeNode(ctx context.Context, s syncplane.SyncLayer, runID string, input, output map[string]string) error {
-	payload := syncplane.NodeExecutePayload{
+func (rs *RuntimeStep) executeStep(ctx context.Context, s syncplane.SyncLayer, runID string, input, output map[string]string) error {
+	payload := syncplane.StepExecutePayload{
 		RunID:      runID,
-		Node:       *rn.Node,
-		NodeDef:    rn.NodeDef,
+		Step:       *rs.Step,
+		Task:       rs.Task,
 		InputURLs:  input,
 		OutputURLs: output,
 
-		MaxAttempts: rn.NodeDef.MaxAttempts,
+		MaxAttempts: rs.Task.MaxAttempts,
 
 		TraceParent: telemetry.InjectContext(ctx),
 	}
 
-	return s.EnqueueExecuteNode(payload)
+	return s.EnqueueExecuteStep(payload)
 }
 
-func (rt *RuntimeFlow) shouldNodeReady(nodeID string) {
-	node := rt.nodes[nodeID]
-	curr_state := rt.FlowRun.NodeState[nodeID].Status
+func (rt *RuntimeFlow) shouldStepReady(stepID string) {
+	step := rt.steps[stepID]
+	curr_state := rt.FlowRun.StepState[stepID].Status
 
-	if curr_state != models.NODERUN_IDLE {
+	if curr_state != models.STEPRUN_IDLE {
 		return
 	}
 
-	for _, input := range node.Inputs {
+	for _, input := range step.Inputs {
 		_, ok := rt.FlowRun.Artifacts[input.Edge]
 		if !ok {
 			return
 		}
 	}
 
-	rt.FlowRun.NodeState[nodeID] = models.NodeState{Status: models.NODERUN_READY, Logs: rt.FlowRun.NodeState[nodeID].Logs}
+	rt.FlowRun.StepState[stepID] = models.StepState{Status: models.STEPRUN_READY, Logs: rt.FlowRun.StepState[stepID].Logs}
 }

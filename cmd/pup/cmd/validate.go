@@ -25,9 +25,9 @@ Otherwise, all flows in the project will be validated.`,
 			return fmt.Errorf("not inside a project")
 		}
 
-		nodeDefs, err := project.GetNodeDefs(root)
+		tasks, err := project.GetTasks(root)
 		if err != nil {
-			return fmt.Errorf("failed to load node definitions: %w", err)
+			return fmt.Errorf("failed to load task definitions: %w", err)
 		}
 
 		var flows []models.Flow
@@ -55,7 +55,7 @@ Otherwise, all flows in the project will be validated.`,
 		hasErrors := false
 
 		for _, flow := range flows {
-			result := validation.Validate(flow, nodeDefs)
+			result := validation.Validate(flow, tasks)
 			printValidationResult(flow.Name, result)
 
 			if result.HasError() {

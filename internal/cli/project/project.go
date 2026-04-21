@@ -36,7 +36,7 @@ func newProjectFile(projectName string) ProjectFile {
 	}
 }
 
-func TestFlow(flow *models.Flow, node_defs []models.NodeDef, controllerAddress string, mocks3 bool) (*models.FlowRun, *models.Flow, error) {
+func TestFlow(flow *models.Flow, tasks []models.Task, controllerAddress string, mocks3 bool) (*models.FlowRun, *models.Flow, error) {
 
 	// flow, err := GetFlow(projectRoot, flowName)
 	// if err != nil {
@@ -45,17 +45,17 @@ func TestFlow(flow *models.Flow, node_defs []models.NodeDef, controllerAddress s
 
 	// flow.Normalize()
 
-	// node_defs, err := GetNodeDefs(projectRoot)
+	// tasks, err := GetTasks(projectRoot)
 	// if err != nil {
 	// 	return nil, nil, err
 	// }
 
 	body := struct {
-		Flow     models.Flow      `json:"Flow"`
-		NodeDefs []models.NodeDef `json:"NodeDefs"`
+		Flow  models.Flow   `json:"Flow"`
+		Tasks []models.Task `json:"Tasks"`
 	}{
-		Flow:     *flow,
-		NodeDefs: node_defs,
+		Flow:  *flow,
+		Tasks: tasks,
 	}
 
 	j, err := json.Marshal(&body)
@@ -87,9 +87,9 @@ func TestFlow(flow *models.Flow, node_defs []models.NodeDef, controllerAddress s
 	return flow_run, flow, nil
 }
 
-func GetNodeDefs(projectRoot string) ([]models.NodeDef, error) {
-	path := filepath.Join(projectRoot, "node_defs")
-	nodeDefs := make([]models.NodeDef, 0)
+func GetTasks(projectRoot string) ([]models.Task, error) {
+	path := filepath.Join(projectRoot, "tasks")
+	tasks := make([]models.Task, 0)
 
 	yamls, err := os.ReadDir(path)
 	if err != nil {
@@ -97,22 +97,22 @@ func GetNodeDefs(projectRoot string) ([]models.NodeDef, error) {
 	}
 
 	for _, y := range yamls {
-		var nodeDef models.NodeDef
+		var task models.Task
 		data, err := os.ReadFile(filepath.Join(path, y.Name()))
 		if err != nil {
 			continue
 		}
 
-		if err := yaml.Unmarshal(data, &nodeDef); err != nil {
+		if err := yaml.Unmarshal(data, &task); err != nil {
 			continue
 		}
 
-		nodeDef.Normalize()
+		task.Normalize()
 
-		nodeDefs = append(nodeDefs, nodeDef)
+		tasks = append(tasks, task)
 	}
 
-	return nodeDefs, nil
+	return tasks, nil
 }
 
 func loadFlowsFromDir(path string) ([]models.Flow, error) {
@@ -140,8 +140,8 @@ func loadFlowsFromDir(path string) ([]models.Flow, error) {
 	return flows, nil
 }
 
-func loadDefsFromDir(path string) ([]models.NodeDef, error) {
-	nodeDefs := make([]models.NodeDef, 0)
+func loadTasksFromDir(path string) ([]models.Task, error) {
+	tasks := make([]models.Task, 0)
 
 	yamls, err := os.ReadDir(path)
 	if err != nil {
@@ -149,20 +149,20 @@ func loadDefsFromDir(path string) ([]models.NodeDef, error) {
 	}
 
 	for _, y := range yamls {
-		var nodeDef models.NodeDef
+		var task models.Task
 		data, err := os.ReadFile(filepath.Join(path, y.Name()))
 		if err != nil {
 			continue
 		}
 
-		if err := yaml.Unmarshal(data, &nodeDef); err != nil {
+		if err := yaml.Unmarshal(data, &task); err != nil {
 			continue
 		}
 
-		nodeDefs = append(nodeDefs, nodeDef)
+		tasks = append(tasks, task)
 	}
 
-	return nodeDefs, nil
+	return tasks, nil
 }
 
 func GetFlows(projectRoot string) ([]models.Flow, error) {
@@ -228,7 +228,7 @@ func InitProject(path string, projectName string) error {
 		return err
 	}
 
-	if err := os.Mkdir("node_defs", 0700); err != nil {
+	if err := os.Mkdir("tasks", 0700); err != nil {
 		return err
 	}
 
@@ -304,7 +304,7 @@ func getProject(projectRoot string) (models.Project, error) {
 		return models.Project{}, err
 	}
 
-	nodeDefs, err := GetNodeDefs(projectRoot)
+	tasks, err := GetTasks(projectRoot)
 	if err != nil {
 		return models.Project{}, err
 	}
@@ -315,9 +315,9 @@ func getProject(projectRoot string) (models.Project, error) {
 	}
 
 	return models.Project{
-		ID:       projectFile.ID,
-		Flows:    flows,
-		NodeDefs: nodeDefs,
+		ID:    projectFile.ID,
+		Flows: flows,
+		Tasks: tasks,
 	}, nil
 }
 

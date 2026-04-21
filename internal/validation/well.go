@@ -24,14 +24,14 @@ func wellInvalidSource(r *ValidationResult, well models.DataWell) {
 	}
 }
 
-func wellEdgeNotFound(r *ValidationResult, wells []models.DataWell, nodes []models.Node) {
+func wellEdgeNotFound(r *ValidationResult, wells []models.DataWell, steps []models.Step) {
 	edgeSet := make(map[string]struct{})
-	for _, node := range nodes {
-		for _, in := range node.Inputs {
+	for _, step := range steps {
+		for _, in := range step.Inputs {
 			edgeSet[in.Edge] = struct{}{}
 		}
 
-		for _, out := range node.Outputs {
+		for _, out := range step.Outputs {
 			edgeSet[out.Edge] = struct{}{}
 		}
 	}

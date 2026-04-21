@@ -8,7 +8,7 @@ type Flow struct {
 	Stores          []StoreInput
 	DefaultDataWell *DataWell
 	DataWells       []DataWell
-	Nodes           []Node
+	Steps           []Step
 }
 
 func (f *Flow) Normalize() {

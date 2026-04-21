@@ -8,17 +8,17 @@ import (
 
 const (
 	TypeFlowStep        = "flow:step"
-	TypeNodeExecute     = "node:execute"
-	TypeNodeFinished    = "node:finished"
-	TypeNodeFailed      = "node:failed"
+	TypeStepExecute     = "step:execute"
+	TypeStepFinished    = "step:finished"
+	TypeStepFailed      = "step:failed"
 	TypeControllerClean = "controller:clean"
 )
 
-type ExecuteNodeHandler func(ctx context.Context, payload NodeExecutePayload) error
-type NodeExecutePayload struct {
+type ExecuteStepHandler func(ctx context.Context, payload StepExecutePayload) error
+type StepExecutePayload struct {
 	RunID      string
-	NodeDef    models.NodeDef
-	Node       models.Node
+	Task       models.Task
+	Step       models.Step
 	InputURLs  map[string]string
 	OutputURLs map[string]string
 
@@ -33,19 +33,19 @@ type FlowStepPayload struct {
 	RunID string
 }
 
-type NodeFinishedHandler func(ctx context.Context, payload NodeFinishedPayload) error
-type NodeFinishedPayload struct {
+type StepFinishedHandler func(ctx context.Context, payload StepFinishedPayload) error
+type StepFinishedPayload struct {
 	RunID  string
-	NodeID string
+	StepID string
 	Logs   []models.LogRecord
 
 	TraceParent string
 }
 
-type NodeFailedHandler func(ctx context.Context, payload NodeFailedPayload) error
-type NodeFailedPayload struct {
+type StepFailedHandler func(ctx context.Context, payload StepFailedPayload) error
+type StepFailedPayload struct {
 	RunID       string
-	NodeID      string
+	StepID      string
 	Attempt     int
 	MaxAttempts int
 	Error       string

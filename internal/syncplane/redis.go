@@ -131,16 +131,16 @@ func NewWorkerRedisSyncLayer(cfg SyncPlaneSettings, rCfg resources.ResourceSetti
 	return redisSync
 }
 
-func (r *RedisSync) RegisterExecuteNodeHandler(handler ExecuteNodeHandler) error {
+func (r *RedisSync) RegisterExecuteStepHandler(handler ExecuteStepHandler) error {
 	if r.mux == nil {
 		return fmt.Errorf("cannot register handler: mux not initalized")
 	}
 
-	r.mux.HandleFunc(TypeNodeExecute, func(ctx context.Context, t *asynq.Task) error {
-		var p NodeExecutePayload
+	r.mux.HandleFunc(TypeStepExecute, func(ctx context.Context, t *asynq.Task) error {
+		var p StepExecutePayload
 		err := json.Unmarshal(t.Payload(), &p)
 		if err != nil {
-			return fmt.Errorf("ExecuteNodeHandler: Error unmarshaling payload: %w", err)
+			return fmt.Errorf("ExecuteStepHandler: Error unmarshaling payload: %w", err)
 		}
 
 		attempt, _ := asynq.GetRetryCount(ctx)
@@ -156,17 +156,17 @@ func (r *RedisSync) RegisterExecuteNodeHandler(handler ExecuteNodeHandler) error
 	return nil
 }
 
-func (r *RedisSync) EnqueueExecuteNode(payload NodeExecutePayload) error {
+func (r *RedisSync) EnqueueExecuteStep(payload StepExecutePayload) error {
 	p, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	queue := payload.NodeDef.Tier
+	queue := payload.Task.Tier
 
-	r.log.Debug("enqueued node def", "tier", payload.NodeDef.Tier)
+	r.log.Debug("enqueued task", "tier", payload.Task.Tier)
 
-	task := asynq.NewTask(TypeNodeExecute, p, asynq.Queue(queue), asynq.MaxRetry(payload.MaxAttempts-1))
+	task := asynq.NewTask(TypeStepExecute, p, asynq.Queue(queue), asynq.MaxRetry(payload.MaxAttempts-1))
 	if _, err := r.asynqClient.Enqueue(task); err != nil {
 		return err
 	}
@@ -174,16 +174,16 @@ func (r *RedisSync) EnqueueExecuteNode(payload NodeExecutePayload) error {
 	return nil
 }
 
-func (r *RedisSync) RegisterNodeFinishedHandler(handler NodeFinishedHandler) error {
+func (r *RedisSync) RegisterStepFinishedHandler(handler StepFinishedHandler) error {
 	if r.mux == nil {
 		return fmt.Errorf("cannot register handler: mux not initalized")
 	}
 
-	r.mux.HandleFunc(TypeNodeFinished, func(ctx context.Context, t *asynq.Task) error {
-		var p NodeFinishedPayload
+	r.mux.HandleFunc(TypeStepFinished, func(ctx context.Context, t *asynq.Task) error {
+		var p StepFinishedPayload
 		err := json.Unmarshal(t.Payload(), &p)
 		if err != nil {
-			return fmt.Errorf("RegisterExecuteNodeHandler: Error unmarshaling payload: %w", err)
+			return fmt.Errorf("RegisterStepFinishedHandler: Error unmarshaling payload: %w", err)
 		}
 		return handler(ctx, p)
 	})
@@ -191,13 +191,13 @@ func (r *RedisSync) RegisterNodeFinishedHandler(handler NodeFinishedHandler) err
 	return nil
 }
 
-func (r *RedisSync) EnqueueNodeFinished(payload NodeFinishedPayload) error {
+func (r *RedisSync) EnqueueStepFinished(payload StepFinishedPayload) error {
 	p, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	task := asynq.NewTask(TypeNodeFinished, p, asynq.Queue("controller"))
+	task := asynq.NewTask(TypeStepFinished, p, asynq.Queue("controller"))
 	if _, err := r.asynqClient.Enqueue(task); err != nil {
 		return err
 	}
@@ -205,16 +205,16 @@ func (r *RedisSync) EnqueueNodeFinished(payload NodeFinishedPayload) error {
 	return nil
 }
 
-func (r *RedisSync) RegisterNodeFailedHandler(handler NodeFailedHandler) error {
+func (r *RedisSync) RegisterStepFailedHandler(handler StepFailedHandler) error {
 	if r.mux == nil {
 		return fmt.Errorf("cannot register handler: mux not initalized")
 	}
 
-	r.mux.HandleFunc(TypeNodeFailed, func(ctx context.Context, t *asynq.Task) error {
-		var p NodeFailedPayload
+	r.mux.HandleFunc(TypeStepFailed, func(ctx context.Context, t *asynq.Task) error {
+		var p StepFailedPayload
 		err := json.Unmarshal(t.Payload(), &p)
 		if err != nil {
-			return fmt.Errorf("RegisterNodeFailedHandler: Error unmarshaling payload: %w", err)
+			return fmt.Errorf("RegisterStepFailedHandler: Error unmarshaling payload: %w", err)
 		}
 		return handler(ctx, p)
 	})
@@ -222,13 +222,13 @@ func (r *RedisSync) RegisterNodeFailedHandler(handler NodeFailedHandler) error {
 	return nil
 }
 
-func (r *RedisSync) EnqueueNodeFailed(payload NodeFailedPayload) error {
+func (r *RedisSync) EnqueueStepFailed(payload StepFailedPayload) error {
 	p, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	task := asynq.NewTask(TypeNodeFailed, p, asynq.Queue("controller"))
+	task := asynq.NewTask(TypeStepFailed, p, asynq.Queue("controller"))
 	if _, err := r.asynqClient.Enqueue(task); err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (r *RedisSync) RegisterFlowStepHandler(handler FlowStepHandler) error {
 		var p FlowStepPayload
 		err := json.Unmarshal(t.Payload(), &p)
 		if err != nil {
-			return fmt.Errorf("RegisterExecuteNodeHandler: Error unmarshaling payload: %w", err)
+			return fmt.Errorf("RegisterFlowStepHandler: Error unmarshaling payload: %w", err)
 		}
 		return handler(ctx, p)
 	})

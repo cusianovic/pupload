@@ -14,19 +14,19 @@ const (
 	FLOWRUN_ERROR    FlowRunStatus = "ERROR"
 )
 
-type NodeRunStatus string
+type StepRunStatus string
 
 const (
-	NODERUN_IDLE     NodeRunStatus = "IDLE"
-	NODERUN_READY    NodeRunStatus = "READY"
-	NODERUN_RUNNING  NodeRunStatus = "RUNNING"
-	NODERUN_RETRYING NodeRunStatus = "RETRYING"
-	NODERUN_COMPLETE NodeRunStatus = "COMPLETE"
-	NODERUN_ERROR    NodeRunStatus = "ERROR"
+	STEPRUN_IDLE     StepRunStatus = "IDLE"
+	STEPRUN_READY    StepRunStatus = "READY"
+	STEPRUN_RUNNING  StepRunStatus = "RUNNING"
+	STEPRUN_RETRYING StepRunStatus = "RETRYING"
+	STEPRUN_COMPLETE StepRunStatus = "COMPLETE"
+	STEPRUN_ERROR    StepRunStatus = "ERROR"
 )
 
-type NodeState struct {
-	Status      NodeRunStatus
+type StepState struct {
+	Status      StepRunStatus
 	Logs        []LogRecord
 	Error       string
 	Attempt     int
@@ -48,7 +48,7 @@ type WaitingURL struct {
 type FlowRun struct {
 	ID string
 
-	NodeState   map[string]NodeState
+	StepState   map[string]StepState
 	Status      FlowRunStatus
 	Artifacts   map[string]Artifact // Maps given edge ID to Artifact
 	WaitingURLs []WaitingURL

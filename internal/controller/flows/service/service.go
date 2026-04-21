@@ -44,8 +44,8 @@ func CreateFlowService(cfg *config.ControllerConfig, s syncplane.SyncLayer) (*Fl
 	}
 
 	s.RegisterFlowStepHandler(f.FlowStepHandler)
-	s.RegisterNodeFinishedHandler(f.NodeFinishedHandler)
-	s.RegisterNodeFailedHandler(f.NodeFailedHandler)
+	s.RegisterStepFinishedHandler(f.StepFinishedHandler)
+	s.RegisterStepFailedHandler(f.StepFailedHandler)
 
 	s.Start()
 
@@ -56,25 +56,25 @@ func (f *FlowService) Close(ctx context.Context) {
 	f.runtimeRepo.Close(ctx)
 }
 
-func (f *FlowService) RunFlow(flow models.Flow, nodeDefs []models.NodeDef) (models.FlowRun, error) {
+func (f *FlowService) RunFlow(flow models.Flow, tasks []models.Task) (models.FlowRun, error) {
 
 	ctx, span := telemetry.Tracer("pupload.controller").Start(context.Background(), "RunFlow")
 	defer span.End()
 
 	flow.Normalize()
-	for i := range nodeDefs {
-		nodeDefs[i].Normalize()
-		f.log.Debug("node def tier", "node_def", nodeDefs[i].Name, "tier", nodeDefs[i].Tier)
+	for i := range tasks {
+		tasks[i].Normalize()
+		f.log.Debug("task tier", "task", tasks[i].Name, "tier", tasks[i].Tier)
 	}
 
-	res := validation.Validate(flow, nodeDefs)
+	res := validation.Validate(flow, tasks)
 
 	if res.HasError() {
 		f.log.Warn("invalid flow", "errors", res.Errors, "warnings", res.Warnings)
 		return models.FlowRun{}, fmt.Errorf("invalid flow")
 	}
 
-	runtime, err := runtime.CreateRuntimeFlow(ctx, flow, nodeDefs)
+	runtime, err := runtime.CreateRuntimeFlow(ctx, flow, tasks)
 	if err != nil {
 		return models.FlowRun{}, err
 	}
